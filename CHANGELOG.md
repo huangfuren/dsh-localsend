@@ -2,6 +2,9 @@
 
 ## 0.2.0 (2026-09-06)
 
+- **发布规范化**:README 改为单一中文文档;package.json 补齐 author / repository / homepage / bugs /
+  `engines.dsh` / publishConfig 等发布字段,对齐 dsh-outline-auto 的仓库规范;新增 `.gitignore`。
+
 - **兼容性增强(开箱即用)**:
   - peer 显式放宽并核对到当前两代宿主:`dsh-tools / client runtime / connection / api-remotes / ui-slots >=0.1.0-rc.6 <0.2.0`(兼容 0.1.1-rc.2 与 0.1.3-alpha.1);
   - `dsh.client.inject` 补齐 `dsh-client-ui-slots`(与 alpha.1 在用插件一致);
