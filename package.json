@@ -1,0 +1,70 @@
+{
+  "name": "dsh-localsend",
+  "version": "0.2.0",
+  "description": "LAN file/folder transfer to machines running LocalSend (LocalSend v2 protocol): scan devices, send files, auto-pack folders to zip. Installable on dsh 0.1.x (rc and alpha lines)",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "check": "node --check index.js && node --check client.js && node --check lib/constants.js && node --check lib/net.js && node --check lib/discovery.js && node --check lib/pack.js && node --check lib/protocol.js && node --check lib/transfer.js && node --check lib/zip.js && node --check lib/tools/list.js && node --check lib/tools/send.js",
+    "test": "node --test",
+    "verify": "npm run check && npm test",
+    "prepack": "npm run verify"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh-CN.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ],
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "3.18.1"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": ">=0.1.0-rc.6 <0.2.0",
+    "@deepseek-ai/cordis": ">=4.0.1 <5",
+    "@deepseek-ai/dsh-client-runtime": ">=0.1.0-rc.6 <0.2.0",
+    "@deepseek-ai/dsh-client-connection": ">=0.1.0-rc.6 <0.2.0",
+    "@deepseek-ai/dsh-api-remotes": ">=0.1.0-rc.6 <0.2.0",
+    "@deepseek-ai/dsh-client-ui-slots": ">=0.1.0-rc.6 <0.2.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-tools": "0.1.0-rc.6"
+  },
+  "engines": {
+    "node": ">=20.11"
+  },
+  "keywords": [
+    "deepseek",
+    "harness",
+    "dsh",
+    "dsh-plugin",
+    "localsend",
+    "lan",
+    "file-transfer"
+  ],
+  "license": "MIT",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  }
+}
