@@ -18,6 +18,9 @@ window.__ModuleLoader__.load({
 			acceptTimeoutMs: 240000,
 			uploadTimeoutMs: 120000,
 			maxFileBytes: 1073741824,
+			sharePort: 0,
+			shareExpiresIn: 3600,
+			sharePassword: "",
 		};
 
 		const inject = ["slots", "connection"];
@@ -25,13 +28,16 @@ window.__ModuleLoader__.load({
 		const STRINGS = {
 			zh: {
 				title: "LocalSend 局域网传输",
-				desc: "通过 LocalSend v2 协议把文件发送到局域网内运行 LocalSend 的机器。配置仅在本地保存。",
+				desc: "通过 LocalSend v2 协议把文件发送到局域网内运行 LocalSend 的机器,或生成浏览器下载链接。配置仅在本地保存。",
 				alias: "发送方别名(显示在接收端)",
 				port: "目标端口",
 				scanTimeoutMs: "设备探测超时(ms)",
 				acceptTimeoutMs: "等待接收端接受(ms)",
 				uploadTimeoutMs: "单文件上传超时(ms)",
 				maxFileBytes: "单文件大小上限(bytes)",
+				sharePort: "分享服务端口(0=随机)",
+				shareExpiresIn: "分享链接有效期(秒)",
+				sharePassword: "分享下载密码(空=无密码)",
 				save: "保存",
 				saving: "保存中…",
 				saved: "已保存。新会话的工具调用将使用更新后的配置。",
@@ -41,13 +47,16 @@ window.__ModuleLoader__.load({
 			},
 			en: {
 				title: "LocalSend LAN transfer",
-				desc: "Send files over LAN to machines running LocalSend (v2 protocol). Config is stored locally only.",
+				desc: "Send files over LAN to machines running LocalSend (v2 protocol), or generate a browser download link. Config is stored locally only.",
 				alias: "Sender alias (shown on the receiver)",
 				port: "Target port",
 				scanTimeoutMs: "Per-host scan timeout (ms)",
 				acceptTimeoutMs: "Wait for receiver accept (ms)",
 				uploadTimeoutMs: "Per-file upload timeout (ms)",
 				maxFileBytes: "Per-file size limit (bytes)",
+				sharePort: "Share server port (0 = random)",
+				shareExpiresIn: "Share link validity (seconds)",
+				sharePassword: "Share download password (empty = none)",
 				save: "Save",
 				saving: "Saving…",
 				saved: "Saved. New tool calls will use the updated configuration.",
@@ -84,7 +93,7 @@ window.__ModuleLoader__.load({
 		};
 
 		const h = react.createElement;
-		const FIELDS = ["alias", "port", "scanTimeoutMs", "acceptTimeoutMs", "uploadTimeoutMs", "maxFileBytes"];
+		const FIELDS = ["alias", "port", "scanTimeoutMs", "acceptTimeoutMs", "uploadTimeoutMs", "maxFileBytes", "sharePort", "shareExpiresIn", "sharePassword"];
 
 		function LocalsendCard(props) {
 			const face = props.localsendCard;
@@ -121,7 +130,7 @@ window.__ModuleLoader__.load({
 					for (const k of FIELDS) {
 						let v = draft[k];
 						if (typeof v === "string") v = v.trim();
-						if (k === "alias") {
+						if (k === "alias" || k === "sharePassword") {
 							if (v !== "") patch[k] = v;
 							continue;
 						}
@@ -147,7 +156,7 @@ window.__ModuleLoader__.load({
 				h("div", { key: k, style: S.row }, [
 					h("label", { style: S.label }, T[k] || k),
 					h("input", {
-						type: k === "alias" ? "text" : "number",
+						type: (k === "alias" || k === "sharePassword") ? "text" : "number",
 						style: S.input,
 						placeholder: k === "alias" ? "(hostname)" : String(DEFAULTS[k]),
 						value: draft[k] === "" ? "" : String(draft[k]),

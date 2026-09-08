@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 (2026-09-06)
+## 0.2.0 (2026-09-08)
 
 - **发布规范化**:README 改为单一中文文档;package.json 补齐 author / repository / homepage / bugs /
   `engines.dsh` / publishConfig 等发布字段,对齐 dsh-outline-auto 的仓库规范;新增 `.gitignore`。
@@ -10,6 +10,14 @@
   - `dsh.client.inject` 补齐 `dsh-client-ui-slots`(与 alpha.1 在用插件一致);
   - 清理产物中的本机绝对路径残留;确认无构建步骤、可 `npm pack` 分发;
   - README 增加第三方安装与兼容性说明(中英)。
+
+- **新增 `localsend_share`**:局域网临时 HTTP 下载分享,**接收方无需安装任何软件**,用浏览器打开链接即可下载。
+- 实现 `lib/share.js`:临时 HTTP 服务器 + 下载页(自适应单/多文件);可选密码保护(Basic Auth);支持 `Range` 断点续传;
+  下载完成或到期自动关闭服务器(一次性链接,防泄露)。
+- 目录自动打包成 zip 后分享;小于 64MB 计算 sha256 校验。
+- 新增 settings 字段:`sharePort`(监听端口,0=随机)、`shareExpiresIn`(默认有效期秒)、`sharePassword`(默认下载密码);
+  浏览器设置卡片已同步显示这三项。
+- 适用:同一局域网内任意设备(Windows/macOS/Linux 或手机浏览器)收文件;跨网络场景后续版本支持(隧道/中继/云存储)。
 - 其余行为同 0.1.2(文件/文件夹发送、目录自动 zip、设置卡片、17 项测试)。
 
 ## 0.1.2 (2026-09-05)

@@ -7,6 +7,7 @@ import Schema from '@deepseek-ai/schemastery'
 import { DEFAULT_PORT, MAX_FILE_BYTES, SCAN_TIMEOUT_MS, PREPARE_TIMEOUT_MS, UPLOAD_TIMEOUT_MS } from './lib/constants.js'
 import { defineListDevicesTool } from './lib/tools/list.js'
 import { defineSendFilesTool } from './lib/tools/send.js'
+import { defineShareTool } from './lib/tools/share.js'
 
 export const name = 'localsend'
 export const inject = ['tools', 'systemPrompt']
@@ -36,6 +37,9 @@ export const Config = Schema.object({
   acceptTimeoutMs: Schema.number().default(PREPARE_TIMEOUT_MS).description('Wait for receiver accept in ms.'),
   uploadTimeoutMs: Schema.number().default(UPLOAD_TIMEOUT_MS).description('Per-file upload timeout in ms.'),
   maxFileBytes: Schema.number().default(MAX_FILE_BYTES).description('Per-file size limit in bytes (v1 reads whole files into memory).'),
+  sharePort: Schema.number().default(0).description('Share server listen port. 0 = random available port (recommended).'),
+  shareExpiresIn: Schema.number().default(3600).description('Default share link validity in seconds. 0 = no expiry.'),
+  sharePassword: Schema.string().default('').description('Default share download password. Empty = no password.'),
 })
 
 export function apply(ctx, config = {}) {
@@ -66,6 +70,7 @@ export function apply(ctx, config = {}) {
 
   ctx.tools.register(defineListDevicesTool(getConfig))
   ctx.tools.register(defineSendFilesTool(getConfig))
+  ctx.tools.register(defineShareTool(getConfig))
 }
 
 export const internals = Object.freeze({
