@@ -4,7 +4,7 @@
 
 零配置、无凭据、无第三方运行时依赖、无任何硬编码路径——自动探测本机网卡子网、自动取主机名作为发送方别名,**装好即用**。包含 host 工具(agent 调用)与浏览器设置卡片(界面配置)。
 
-> 当前版本:**0.2.0**。兼容 DeepSeek Harness **0.1.1-rc.2** 与 **0.1.3-alpha.1**(peer 范围 `>=0.1.0-rc.6 <0.2.0`);Node.js ≥ 22.19;支持 Windows / macOS / Linux。
+> 当前版本:**0.3.0**。兼容 DeepSeek Harness **0.1.1-rc.2** 与 **0.1.3-alpha.1**(peer 范围 `>=0.1.0-rc.6 <0.2.0`);Node.js ≥ 22.19;支持 Windows / macOS / Linux。
 
 ## 原理
 
@@ -30,10 +30,11 @@ LocalSend 没有官方 CLI,但每台 LocalSend 接收端都是一个标准 HTTP(
 
 ## 功能
 
-- **三件工具**:
+- **四件工具**:
   - `localsend_list_devices` — 扫描局域网,列出 LocalSend 设备(ip / 别名 / 协议版本 / 设备类型);可选 `subnet`(CIDR)限定网段;
   - `localsend_send_files` — 把文件/文件夹发给指定目标(别名自动解析或 IP);目录自动打包;阻塞等待接收端接受后上传,返回逐文件结果。
-  - `localsend_share` — 生成临时 LAN HTTP 下载链接,接收方用浏览器打开即可下载,无需安装任何软件;支持密码保护;下载完自动关服务器。
+  - `localsend_share` — 生成临时 LAN HTTP 下载链接,接收方用浏览器打开即可下载,无需安装任何软件;支持密码保护;下载完自动关服务器;输出为结构化对象(含 url / 每文件 size / 总大小 / 有效期 / 是否密码 / 日志)。
+  - `localsend_send_plugin` — 把一个 DSH 插件目录打包成自包含分发 zip(排除 `node_modules`/`.git`,内含 `dsh-plugin.manifest.json` 清单 + `INSTALL.md` 安装卡),经临时 HTTP 链接分享;**接收方只要浏览器就能拿到**,无需安装 LocalSend 或任何软件,解压后按 `INSTALL.md` 一条命令装入。`plugin` 参数支持绝对目录路径或已安装插件名(只读地在 `~/.dsh/profiles/*/node_modules` 下解析,分发 dsh-localsend 自身只需 `plugin="dsh-localsend"`)。
 - **文件与文件夹混发**:同一列表里可同时给文件和目录,目录各自打成 zip 发送。
 - **GUI 配置卡片**:「设置 → 插件配置」中的「LocalSend 局域网传输」卡片,可编辑别名/端口/各类超时/单文件上限/分享端口/有效期/密码,保存即生效(新会话的工具调用生效)。
 - **健壮性**:别名重名/模糊匹配有提示;错误码(403 拒绝、409 繁忙、429 限流、422 校验失败等)映射为可读文案;失败自动取消会话;跳过符号链接与空目录;单文件/单包上限默认 1 GiB(可配置)。
@@ -45,7 +46,7 @@ LocalSend 没有官方 CLI,但每台 LocalSend 接收端都是一个标准 HTTP(
 ### 推荐:DSH 管理安装(已发布 GitHub)
 
 ```bash
-dsh plugin --profile web add git+https://github.com/huangfuren/dsh-localsend.git#v0.2.0
+dsh plugin --profile web add git+https://github.com/huangfuren/dsh-localsend.git#v0.3.0
 ```
 
 `#v0.2.0` 固定到该发布版本;去掉后缀则跟随 `main` 分支最新提交。安装后**重启 DSH**:新会话出现三个工具,GUI 刷新后「设置 → 插件配置」出现卡片。
@@ -54,7 +55,7 @@ dsh plugin --profile web add git+https://github.com/huangfuren/dsh-localsend.git
 
 1. 把 `dsh-localsend` 目录放到你的插件目录(如 `dsh-plugin\`);
 2. 在 profile 的 `package.json` 的 `dependencies` 加 `"dsh-localsend": "file:<路径>"`(或 `link:<绝对路径>`),并在 `dsh.profile.bundles` 加入 `dsh-localsend`;
-3. 或对目录执行 `npm pack`,在 profile 目录 `npm/pnpm install <dsh-localsend-0.2.0.tgz>`(需联网解析 peer);
+3. 或对目录执行 `npm pack`,在 profile 目录 `npm/pnpm install <dsh-localsend-0.3.0.tgz>`(需联网解析 peer);
 4. 重启 DSH。
 
 ## 配置(GUI 卡片 / settings 命名空间 `localsend`)
@@ -70,6 +71,7 @@ dsh plugin --profile web add git+https://github.com/huangfuren/dsh-localsend.git
 | `sharePort` | 0 | 分享服务监听端口(0=随机) |
 | `shareExpiresIn` | 3600 | 分享链接有效期(秒),0=不过期 |
 | `sharePassword` | "" | 分享下载密码(空=无密码) |
+| `dshProfileDir` | `~/.dsh` | 按名解析已安装插件时的 DSH 主目录(只读) |
 
 全部可留默认;留空即用内置默认值。
 

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0 (2026-09-08)
+
+- **新增 `localsend_send_plugin`**:把 DSH 插件目录打包成自包含分发 zip(`<name>-<version>.dsh-plugin.zip`),
+  经临时 HTTP 链接分享——**接收方无需安装任何软件**,浏览器打开即下载。包内排除 `node_modules`/`.git`,
+  含 `dsh-plugin.manifest.json`(逐文件 sha256 清单 + 安装命令模板)与 `INSTALL.md`(一条命令安装卡)。
+- 包格式 `dsh-plugin-package` v1;清单列出 name/version/minDsh/tools 及每个文件的 sha256,便于将来接收端装包器消费。
+- 新增 `lib/plugin-pack.js`:插件感知打包(零依赖,复用 `lib/zip.js`);工具仅做薄组合层,可独立测试。
+- `plugin` 参数接受**绝对目录路径**或**已安装插件名**(只读地在 `~/.dsh/profiles/*/node_modules` 下解析);
+  分发 dsh-localsend 自身只需 `plugin="dsh-localsend"`。
+- 新增配置 `dshProfileDir`(默认 `~/.dsh`),用于按名解析插件;解析全程只读,不改 profile。
+- `localsend_share` 输出升级为结构化对象(含 `url` / 每文件 `files` / `totalSize` / `expiresIn` / `password` / `log`),
+  原日志文本保留在 `log` 字段,向后兼容。
+- 测试:`test/plugin-pack.test.js` 覆盖排除规则、清单、安装卡、zip 往返,以及"打包→HTTP 链接→浏览器下载"端到端。
+
 ## 0.2.0 (2026-09-08)
 
 - **发布规范化**:README 改为单一中文文档;package.json 补齐 author / repository / homepage / bugs /

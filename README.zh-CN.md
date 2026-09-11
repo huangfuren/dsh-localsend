@@ -19,6 +19,8 @@ LocalSend 没有官方 CLI,但每台接收端都是标准 HTTP(S) 服务(默认 
 |---|---|
 | `localsend_list_devices` | 扫描局域网列出 LocalSend 设备(`ip`/`alias`/`version`/`type`);可选 `subnet`(CIDR) |
 | `localsend_send_files` | 向目标(别名或 IP)发送文件/文件夹;目录自动打包成 `<文件夹名>.zip` 再发;阻塞等待接收端接受(默认 240 s);返回逐文件结果 |
+| `localsend_send_plugin` | 把 DSH 插件目录打包成自包含分发 zip(排除 `node_modules`/`.git`,内含 `dsh-plugin.manifest.json` 清单与 `INSTALL.md` 安装卡),生成临时 HTTP 下载链接;**接收方只要浏览器即可下载,无需安装任何软件** |
+| `localsend_share` | 本地文件/文件夹生成临时 HTTP 下载链接,接收方浏览器打开即下载(含密码保护、断点续传、下完自动关) |
 
 ## 配置(settings 命名空间 `localsend`)
 
@@ -60,7 +62,7 @@ npm run verify
 
 ## 过程文档
 
-`D:\deepseek\dsh-chat\dsh-localsend-spec.md`(实测复盘、协议要点、插件设计)。
+`docs/aegis/plans/2026-09-08-localsend-plugin-transfer.md`(v0.3.0 插件传输方案)与 `docs/aegis/baseline/`(实测复盘、协议要点、插件设计基线)。
 
 ## License
 
