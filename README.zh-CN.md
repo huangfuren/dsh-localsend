@@ -21,6 +21,7 @@ LocalSend 没有官方 CLI,但每台接收端都是标准 HTTP(S) 服务(默认 
 | `localsend_send_files` | 向目标(别名或 IP)发送文件/文件夹;目录自动打包成 `<文件夹名>.zip` 再发;阻塞等待接收端接受(默认 240 s);返回逐文件结果 |
 | `localsend_send_plugin` | 把 DSH 插件目录打包成自包含分发 zip(排除 `node_modules`/`.git`,内含 `dsh-plugin.manifest.json` 清单与 `INSTALL.md` 安装卡),生成临时 HTTP 下载链接;**接收方只要浏览器即可下载,无需安装任何软件** |
 | `localsend_share` | 本地文件/文件夹生成临时 HTTP 下载链接,接收方浏览器打开即下载(含密码保护、断点续传、下完自动关) |
+| `localsend_smb_push` | **接收方不装任何软件**时,把文件/文件夹经 SMB 共享复制到目标机器的**指定目录**:你指定 `target`(IP/主机名)、`share`(共享名)、`destDir`(共享下子目录)、`files`;复制全自动,无需接收方点。需接收方预先开共享并给发送方写权限 |
 
 ## 配置(settings 命名空间 `localsend`)
 

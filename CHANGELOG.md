@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0 (2026-09-12)
+
+- **新增 `localsend_smb_push`**:`接收方无需安装任何软件` 时把文件/文件夹经 SMB 文件共享推送到目标机器的**指定目录**。
+  参数 `target`(IP/主机名)、`share`(共享名)、`destDir`(共享下子目录,可空=共享根)、`files`、`username`/`password`(可选,匿名=来宾)。
+  目录自动打包成 zip 再复制;全自动,无需接收方点"接受"。实现 `lib/smb.js`(零依赖,`net use` + `robocopy`),
+  工具层 `lib/tools/smb.js` 仅做薄组合。
+- 定位:本地 `localsend_send_files` 强制接收方装 LocalSend;`localsend_share`/`localsend_send_plugin` 的浏览器链接无法指定落盘目录。
+  本工具补上"`无软件 + 指定 IP + 指定目录 + 全自动`"的唯一可行通道(前提:接收方预先开共享并给写权限)。
+- 错误信息细化:登录失败(密码错/微软账户误用 PIN)、访问被拒(需关密码保护共享+允许不安全来宾登录)、找不到网络路径(离线/防火墙)均给出可读提示。
+- 测试:`test/smb.test.js` 覆盖 UNC 拼接、`net use` 参数(guest/凭据/仅用户名)、`robocopy` 参数(单文件/目录、`/COPY:DAT`、`/E`)。
+- 系统提示 GUIDANCE 增补 SMB 通道使用指引。
+
 ## 0.3.1 (2026-09-12)
 
 - **修复 `dsh web` 启动失败**:`localsend_share` 与 `localsend_send_plugin` 的 output schema 用了 `required: [...]` 数组,

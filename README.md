@@ -30,11 +30,12 @@ LocalSend 没有官方 CLI,但每台 LocalSend 接收端都是一个标准 HTTP(
 
 ## 功能
 
-- **四件工具**:
+- **五件工具**:
   - `localsend_list_devices` — 扫描局域网,列出 LocalSend 设备(ip / 别名 / 协议版本 / 设备类型);可选 `subnet`(CIDR)限定网段;
   - `localsend_send_files` — 把文件/文件夹发给指定目标(别名自动解析或 IP);目录自动打包;阻塞等待接收端接受后上传,返回逐文件结果。
   - `localsend_share` — 生成临时 LAN HTTP 下载链接,接收方用浏览器打开即可下载,无需安装任何软件;支持密码保护;下载完自动关服务器;输出为结构化对象(含 url / 每文件 size / 总大小 / 有效期 / 是否密码 / 日志)。
   - `localsend_send_plugin` — 把一个 DSH 插件目录打包成自包含分发 zip(排除 `node_modules`/`.git`,内含 `dsh-plugin.manifest.json` 清单 + `INSTALL.md` 安装卡),经临时 HTTP 链接分享;**接收方只要浏览器就能拿到**,无需安装 LocalSend 或任何软件,解压后按 `INSTALL.md` 一条命令装入。`plugin` 参数支持绝对目录路径或已安装插件名(只读地在 `~/.dsh/profiles/*/node_modules` 下解析,分发 dsh-localsend 自身只需 `plugin="dsh-localsend"`)。
+  - `localsend_smb_push` — **接收方无需装任何软件**时,把文件/文件夹经 SMB 文件共享**自动**推送到目标机器的**指定目录**:`target`(IP/主机名)+ `share`(共享名)+ `destDir`(共享下子目录,可空=共享根)+ `files`;`username`/`password` 可选(匿名=来宾登录)。目录自动打包成 zip 再复制。前提:接收方预先开一个共享文件夹并给发送方写权限。这是"`无软件 + 指定 IP + 指定落盘目录 + 全自动`"诉求的唯一可行通道(LocalSend 通道强制接收方装 App,浏览器链接通道无法指定落盘目录)。
 - **文件与文件夹混发**:同一列表里可同时给文件和目录,目录各自打成 zip 发送。
 - **GUI 配置卡片**:「设置 → 插件配置」中的「LocalSend 局域网传输」卡片,可编辑别名/端口/各类超时/单文件上限/分享端口/有效期/密码,保存即生效(新会话的工具调用生效)。
 - **健壮性**:别名重名/模糊匹配有提示;错误码(403 拒绝、409 繁忙、429 限流、422 校验失败等)映射为可读文案;失败自动取消会话;跳过符号链接与空目录;单文件/单包上限默认 1 GiB(可配置)。
