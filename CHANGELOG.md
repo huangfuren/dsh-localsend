@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.1 (2026-09-12)
+
+- **修复 `dsh web` 启动失败**:`localsend_share` 与 `localsend_send_plugin` 的 output schema 用了 `required: [...]` 数组,
+  宿主 dsh 的 value schema DSL 只接受逐属性 `required: true`,插件树加载因此报
+  `unsupported JSON schema: schema.required is not supported by the value schema DSL` 并中断启动。已改为逐属性声明。
+- **修复会话历史损坏(resume 失败)**:`localsend_list_devices` 与 `localsend_send_files` 的 `output.render` 返回裸字符串,
+  而 dsh 契约要求返回内容块数组(`ContentBlock[]`)。裸字符串被原样写进 `tool/result` 事件,导致该会话此后每次加载都报
+  `SessionPersistenceCorruptionError: session event at seq N message must contain one tool-result block`。
+  现已改为 `[{ type: 'text', text: String(value) }]`,与其余工具一致。
+- 升级提示:0.3.0 及更早版本产生的历史会话若调用过上述两个工具,需先修复 `tool-result.content`(字符串包装为文本块)才能恢复加载。
+
 ## 0.3.0 (2026-09-08)
 
 - **新增 `localsend_send_plugin`**:把 DSH 插件目录打包成自包含分发 zip(`<name>-<version>.dsh-plugin.zip`),
