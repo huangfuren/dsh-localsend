@@ -23,7 +23,10 @@ window.__ModuleLoader__.load({
 			sharePassword: "",
 		};
 
-		const inject = ["slots", "connection"];
+		// 0.1.5 起 connection 不再暴露 api.settings（ConnectionHandle 只有
+		// isLoopback/generation/state/rpc/reconnect）；设置读写改走 settingsScope
+		// （与官方设置卡片同一抽象，见 dsh-client-ui-settings 的 SettingsScope）。
+		const inject = ["slots", "settingsScope"];
 
 		const STRINGS = {
 			zh: {
@@ -189,37 +192,96 @@ window.__ModuleLoader__.load({
 			]);
 		}
 
-		function apply(ctx) {
-			const { api } = ctx.get("connection");
+		// 客户端服务可能晚于本插件就绪（package.json 里 dsh.client.immediately=true）：
+		// 命中即注册，未就绪则等 cordis 的 service-added 事件重试，避免卡片永久缺失。
+		let activated = false;
+
+		/**
+		 * 尝试注册设置卡片。
+		 * @param ctx - client cordis context.
+		 * @returns 已处理完（成功注册，或服务形状不符已放弃）时为 true；服务尚未就绪时为 false。
+		 */
+		function tryActivate(ctx) {
+			if (activated) return true;
+			const settingsScope = typeof ctx.get === "function" ? ctx.get("settingsScope") : undefined;
+			if (settingsScope === undefined || settingsScope === null) return false;
+			const slots = typeof ctx.get === "function" ? ctx.get("slots") : undefined;
+			if (slots === undefined || slots === null) return false;
+			if (typeof settingsScope.bind !== "function") {
+				console.warn("[localsend] settingsScope.bind API changed; settings card not registered");
+				activated = true;
+				return true;
+			}
+			if (typeof slots.inject !== "function" || typeof slots.register !== "function") {
+				console.warn("[localsend] slots API changed; settings card not registered");
+				activated = true;
+				return true;
+			}
+			let scope;
+			try {
+				scope = settingsScope.bind({ namespace: SETTINGS_NS });
+			} catch (err) {
+				console.warn("[localsend] settings scope unavailable; settings card not registered: " + (err && err.message ? err.message : err));
+				activated = true;
+				return true;
+			}
+			// 读一个 scope 当前已解析的 section；未就绪/形状不符都退化为空对象。
+			const readSection = (sc) => {
+				try {
+					const snap = sc && typeof sc.getSnapshot === "function" ? sc.getSnapshot() : null;
+					return (snap && snap.status === "ready" && snap.value) ? snap.value : {};
+				} catch (e) {
+					return {};
+				}
+			};
 			const face = {
 				readValues: async () => {
-					if (!api.settings?.describe) return {};
-					const res = await api.settings.describe({});
-					const namespaces = res?.result?.value?.namespaces ?? [];
-					const ns = namespaces.find((n) => n?.ns === SETTINGS_NS);
-					const value = ns && typeof ns.value === "object" ? ns.value : {};
+					const value = readSection(scope);
 					const out = {};
 					for (const k of FIELDS) if (typeof value[k] !== "undefined") out[k] = value[k];
 					return out;
 				},
-				// update 做 deep-merge:只改传入字段。
-				saveValues: (patch) => api.settings.update({ ns: SETTINGS_NS, patch }),
+				// 逐字段 set 即“设置该字段”，与旧 update 的 deep-merge patch 语义等价。
+				saveValues: async (patch) => {
+					for (const k of Object.keys(patch)) await scope.set(k, patch[k]);
+				},
 				localePreference: async () => {
-					if (!api.settings?.describe) return "";
-					const res = await api.settings.describe({});
-					const namespaces = res?.result?.value?.namespaces ?? [];
-					const locale = namespaces.find((n) => n?.ns === "locale");
-					const pref = locale?.value?.preference;
-					return typeof pref === "string" ? pref : "";
+					try {
+						const pref = readSection(settingsScope.bind({ namespace: "locale" })).preference;
+						return typeof pref === "string" ? pref : "";
+					} catch (e) {
+						return "";
+					}
 				},
 			};
-			ctx.slots.inject("settings.plugin.item", () => ctx.slots.register({
-				// keyed slot:配置页按 Host 端 settings namespace 派发卡片,key 必须与
-				// index.js 的 SETTINGS_NAMESPACE('localsend') 一致,否则不会渲染。
-				name: "settings.plugin.item",
-				key: SETTINGS_NS,
-				inject: () => ({ localsendCard: face }),
-			}, LocalsendCard));
+			try {
+				slots.inject("settings.plugin.item", () => slots.register({
+					// keyed slot:配置页按 Host 端 settings namespace 派发卡片,key 必须与
+					// index.js 的 SETTINGS_NAMESPACE('localsend') 一致,否则不会渲染。
+					name: "settings.plugin.item",
+					key: SETTINGS_NS,
+					inject: () => ({ localsendCard: face }),
+				}, LocalsendCard));
+			} catch (err) {
+				console.warn("[localsend] settings card registration failed: " + (err && err.message ? err.message : err));
+			}
+			activated = true;
+			return true;
+		}
+
+		function apply(ctx) {
+			// 兼容性加固：apply 抛异常会让本插件在客户端侧加载失败（旧写法
+			// `const { api } = ctx.get("connection")` 在服务缺失时会直接抛 TypeError）。
+			try {
+				if (tryActivate(ctx)) return;
+				if (typeof ctx.on === "function") {
+					ctx.on("service-added", (name) => {
+						if (name === "settingsScope" || name === "slots") tryActivate(ctx);
+					});
+				}
+			} catch (err) {
+				console.warn("[localsend] init failed; settings card not registered: " + (err && err.message ? err.message : err));
+			}
 		}
 
 		exports.apply = apply;
