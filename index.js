@@ -48,6 +48,27 @@ function defaultAlias() {
   return `${os.hostname() || 'this-machine'} (dsh-localsend)`
 }
 
+/**
+ * 兼容性日志：优先宿主 logger，缺失时退回 console；日志本身绝不抛异常。
+ * @param {object} ctx - cordis 上下文。
+ * @param {string} message - 描述本次降级的一句话。
+ * @param {unknown} [error] - 触发降级的异常。
+ */
+function report(ctx, message, error) {
+  const detail = error === undefined || error === null
+    ? ''
+    : ': ' + (error && error.message ? error.message : String(error))
+  const text = '[localsend] ' + message + detail
+  try {
+    // 用 ctx.get 探测 logger：cordis 对未声明的属性直访会抛守卫异常，get 不会。
+    const logger = (ctx !== undefined && ctx !== null && typeof ctx.get === 'function') ? ctx.get('logger') : undefined
+    if (logger !== undefined && logger !== null && typeof logger.warn === 'function') logger.warn(text)
+    else console.warn(text)
+  } catch {
+    try { console.warn(text) } catch { /* 日志失败不影响插件 */ }
+  }
+}
+
 export const Config = Schema.object({
   alias: Schema.string().default('').description('Sender alias shown on the receiver. Empty = auto (hostname).'),
   port: Schema.number().default(DEFAULT_PORT).description('Target LocalSend port.'),
@@ -62,6 +83,13 @@ export const Config = Schema.object({
 })
 
 export function apply(ctx, config = {}) {
+  // ── 兼容性加固（防 DSH 官方升级导致插件把整机拖垮）──────────────────────
+  // 本函数（含其延迟回调）的任何失败都不得向外抛出：DSH 启动后会跑
+  // assertEntriesActivated() 审计，把 apply 抛异常的插件判为 fiber FAILED 并
+  // 直接拒绝启动整个 dsh（"plugin tree failed to load"）。因此下面把
+  // 设置段落 / 系统提示 / 每个工具注册**各自独立** try/catch，失败只降级该
+  // 能力并打日志，其余能力照常可用；宿主 API 改名时插件自身受控降级，
+  // 不会连带用户的 dsh 起不来。
   const entryConfig = {
     alias: '',
     port: DEFAULT_PORT,
@@ -74,25 +102,60 @@ export function apply(ctx, config = {}) {
   }
   // 当前生效配置(默认值 → 组合层 base → 用户设置层);与官方 installSettingsSection 同款模式。
   let activeConfig = () => entryConfig
-  ctx.inject(['settings'], (sctx) => {
-    const scope = sctx.settings.register(SETTINGS_NAMESPACE, Config, { base: entryConfig })
-    activeConfig = () => scope.get()
-    sctx.effect(() => () => {
-      activeConfig = () => entryConfig
+  try {
+    ctx.inject(['settings'], (sctx) => {
+      try {
+        const scope = sctx.settings.register(SETTINGS_NAMESPACE, Config, { base: entryConfig })
+        activeConfig = () => scope.get()
+        sctx.effect(() => () => {
+          activeConfig = () => entryConfig
+        })
+      } catch (err) {
+        report(ctx, 'settings section unavailable; falling back to the entry config', err)
+      }
     })
-  })
+  } catch (err) {
+    report(ctx, 'settings injection unavailable; falling back to the entry config', err)
+  }
   const getConfig = () => {
-    const c = activeConfig()
+    let c
+    try {
+      c = activeConfig()
+    } catch (err) {
+      report(ctx, 'config resolution failed; using entry config', err)
+      c = entryConfig
+    }
     return { ...c, alias: c.alias || defaultAlias() }
   }
 
-  ctx.systemPrompt.section({ name: 'tool:localsend', order: 150, text: GUIDANCE })
+  try {
+    if (typeof ctx.systemPrompt?.section === 'function') {
+      ctx.systemPrompt.section({ name: 'tool:localsend', order: 150, text: GUIDANCE })
+    } else {
+      report(ctx, 'systemPrompt.section API changed; guidance not injected')
+    }
+  } catch (err) {
+    report(ctx, 'systemPrompt.section failed; guidance not injected', err)
+  }
 
-  ctx.tools.register(defineListDevicesTool(getConfig))
-  ctx.tools.register(defineSendFilesTool(getConfig))
-  ctx.tools.register(defineSendPluginTool(getConfig))
-  ctx.tools.register(defineShareTool(getConfig))
-  ctx.tools.register(defineSmbPushTool(getConfig))
+  if (typeof ctx.tools?.register !== 'function') {
+    report(ctx, 'tools.register API changed; LAN transfer tools not registered')
+    return
+  }
+  const toolFactories = [
+    [defineListDevicesTool, 'localsend_list_devices'],
+    [defineSendFilesTool, 'localsend_send_files'],
+    [defineSendPluginTool, 'localsend_send_plugin'],
+    [defineShareTool, 'localsend_share'],
+    [defineSmbPushTool, 'localsend_smb_push'],
+  ]
+  for (const [factory, label] of toolFactories) {
+    try {
+      ctx.tools.register(factory(getConfig))
+    } catch (err) {
+      report(ctx, `tool "${label}" was not registered`, err)
+    }
+  }
 }
 
 export const internals = Object.freeze({
