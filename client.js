@@ -1,6 +1,6 @@
 // dsh-localsend 浏览器设置卡片(「设置 → 插件配置」列表项)。
-// 在 Host 端 settings namespace "localsend" 上注册键为 localsend 的
-// settings.plugin.item 卡片:值非敏感,describe 返回明文,可回显与编辑。
+// 在 Host 端 settings namespace "localsend"（entryId）上取共享表单，挂进
+// 「设置 → 内置插件」页签：值非敏感，describe 返回明文，可回显与编辑。
 window.__ModuleLoader__.load({
 	id: "dsh-localsend",
 	factory: (require) => {
@@ -23,10 +23,10 @@ window.__ModuleLoader__.load({
 			sharePassword: "",
 		};
 
-		// 0.1.5 起 connection 不再暴露 api.settings（ConnectionHandle 只有
-		// isLoopback/generation/state/rpc/reconnect）；设置读写改走 settingsScope
-		// （与官方设置卡片同一抽象，见 dsh-client-ui-settings 的 SettingsScope）。
-		const inject = ["slots", "settingsScope"];
+		// dsh 0.2.0：settingsScope 已删除。设置读写走 ctx.configForms（宿主 settings 域
+		// 提供的共享表单），卡片挂进设置面板的 "settings.plugins.tab" 页签。
+		// entryId 必须与 index.js 的 SETTINGS_NAMESPACE 一致 —— 宿主分配的实例 id。
+		const inject = ["slots", "configForms"];
 
 		const STRINGS = {
 			zh: {
@@ -114,9 +114,16 @@ window.__ModuleLoader__.load({
 					if (!alive) return;
 					setDraft(Object.assign({}, DEFAULTS, vals));
 				}).catch(() => {});
-				face.localePreference().then((p) => {
-					if (alive && (p === "zh" || p === "en")) setLang(p);
-				}).catch(() => {});
+				// 语言偏好是可选能力：旧版 face 没有这个方法，直接调用会让 useEffect 抛
+				// TypeError 并连带整张卡片崩溃（表现为「内置插件」页签里一片空白）。
+				// 这里先探测再调用，缺它只损失语言切换，不影响配置编辑。
+				if (typeof face.localePreference === "function") {
+					try {
+						face.localePreference().then((p) => {
+							if (alive && (p === "zh" || p === "en")) setLang(p);
+						}).catch(() => {});
+					} catch { /* 忽略：语言探测失败不影响卡片。 */ }
+				}
 				return () => { alive = false; };
 			}, [face]);
 
@@ -192,95 +199,68 @@ window.__ModuleLoader__.load({
 			]);
 		}
 
-		// 客户端服务可能晚于本插件就绪（package.json 里 dsh.client.immediately=true）：
-		// 命中即注册，未就绪则等 cordis 的 service-added 事件重试，避免卡片永久缺失。
-		let activated = false;
-
-		/**
-		 * 尝试注册设置卡片。
-		 * @param ctx - client cordis context.
-		 * @returns 已处理完（成功注册，或服务形状不符已放弃）时为 true；服务尚未就绪时为 false。
-		 */
-		function tryActivate(ctx) {
-			if (activated) return true;
-			const settingsScope = typeof ctx.get === "function" ? ctx.get("settingsScope") : undefined;
-			if (settingsScope === undefined || settingsScope === null) return false;
-			const slots = typeof ctx.get === "function" ? ctx.get("slots") : undefined;
-			if (slots === undefined || slots === null) return false;
-			if (typeof settingsScope.bind !== "function") {
-				console.warn("[localsend] settingsScope.bind API changed; settings card not registered");
-				activated = true;
-				return true;
-			}
-			if (typeof slots.inject !== "function" || typeof slots.register !== "function") {
-				console.warn("[localsend] slots API changed; settings card not registered");
-				activated = true;
-				return true;
-			}
-			let scope;
+		// dsh 0.2.0 设置卡片。宿主把 Config schema 自动投影成表单，页面挂在设置面板的
+		// 「内置插件」页签里；只要 Host 还在服务 localsend 这个命名空间，页面就注册，
+		// 否则部署里看不到这个插件的任何痕迹。
+		function apply(ctx) {
+			// 兼容性加固：apply 抛异常会让本插件在客户端侧加载失败。旧写法
+			// ctx.get("connection") 解构在服务缺失时会直接抛 TypeError。
 			try {
-				scope = settingsScope.bind({ namespace: SETTINGS_NS });
-			} catch (err) {
-				console.warn("[localsend] settings scope unavailable; settings card not registered: " + (err && err.message ? err.message : err));
-				activated = true;
-				return true;
-			}
-			// 读一个 scope 当前已解析的 section；未就绪/形状不符都退化为空对象。
-			const readSection = (sc) => {
-				try {
-					const snap = sc && typeof sc.getSnapshot === "function" ? sc.getSnapshot() : null;
-					return (snap && snap.status === "ready" && snap.value) ? snap.value : {};
-				} catch (e) {
-					return {};
+				if (typeof ctx.configForms?.get !== 'function') {
+					console.warn('[localsend] configForms unavailable; settings card not registered');
+					return;
 				}
-			};
-			const face = {
-				readValues: async () => {
-					const value = readSection(scope);
-					const out = {};
-					for (const k of FIELDS) if (typeof value[k] !== "undefined") out[k] = value[k];
-					return out;
-				},
-				// 逐字段 set 即“设置该字段”，与旧 update 的 deep-merge patch 语义等价。
-				saveValues: async (patch) => {
-					for (const k of Object.keys(patch)) await scope.set(k, patch[k]);
-				},
-				localePreference: async () => {
-					try {
-						const pref = readSection(settingsScope.bind({ namespace: "locale" })).preference;
-						return typeof pref === "string" ? pref : "";
-					} catch (e) {
-						return "";
-					}
-				},
-			};
-			try {
-				slots.inject("settings.plugin.item", () => slots.register({
-					// keyed slot:配置页按 Host 端 settings namespace 派发卡片,key 必须与
-					// index.js 的 SETTINGS_NAMESPACE('localsend') 一致,否则不会渲染。
-					name: "settings.plugin.item",
-					key: SETTINGS_NS,
+				if (typeof ctx.slots?.inject !== 'function' || typeof ctx.slots?.register !== 'function') {
+					console.warn('[localsend] slots API changed; settings card not registered');
+					return;
+				}
+				const form = ctx.configForms.get(SETTINGS_NS);
+
+				// 值域：取 form 快照。快照里的 value 已是宿主解析过的普通值，
+				// 不是 Volatile 包装 —— 包装只存在于 Host 进程内的 Config 递交。
+				const face = {
+					readValues: async () => {
+						try {
+							const v = form.getSnapshot()?.value;
+							const out = {};
+							if (v && typeof v === 'object') {
+								for (const k of FIELDS) if (typeof v[k] !== 'undefined') out[k] = v[k];
+							}
+							return out;
+						} catch {
+							return {};
+						}
+					},
+					// 逐字段 set 即「设置该字段」，与旧 update 的 deep-merge patch 语义等价。
+					saveValues: async (patch) => {
+						for (const k of Object.keys(patch)) await form.set(k, patch[k]);
+					},
+					// 卡片文案语言：宿主暴露 locale 偏好时用它，否则退回浏览器语言。
+					// 始终返回 Promise —— 调用方按 thenable 使用。
+					localePreference: async () => {
+						try {
+							const snapshot = typeof ctx.locale?.getSnapshot === 'function' ? ctx.locale.getSnapshot() : undefined;
+							const pref = snapshot && (snapshot.preference ?? snapshot.language);
+							if (pref === 'zh' || pref === 'en') return pref;
+						} catch { /* locale 服务缺失或不兼容，退回浏览器语言。 */ }
+						return detectLanguage();
+					},
+				};
+
+				// 只有 Host 服务该命名空间时才挂页面；未部署 Host 侧插件时页面不出现。
+				const mount = () => ctx.slots.inject('settings.plugins.tab', () => ctx.slots.register({
+					name: 'settings.plugins.tab',
+					id: SETTINGS_NS,
+					order: 45,
+					label: () => (STRINGS[detectLanguage()] ?? STRINGS.en).title,
 					inject: () => ({ localsendCard: face }),
 				}, LocalsendCard));
+				ctx.effect(() => {
+					if (typeof ctx.configForms.whileServed !== 'function') return mount();
+					return ctx.configForms.whileServed([SETTINGS_NS], mount);
+				}, 'localsend: settings tab');
 			} catch (err) {
-				console.warn("[localsend] settings card registration failed: " + (err && err.message ? err.message : err));
-			}
-			activated = true;
-			return true;
-		}
-
-		function apply(ctx) {
-			// 兼容性加固：apply 抛异常会让本插件在客户端侧加载失败（旧写法
-			// `const { api } = ctx.get("connection")` 在服务缺失时会直接抛 TypeError）。
-			try {
-				if (tryActivate(ctx)) return;
-				if (typeof ctx.on === "function") {
-					ctx.on("service-added", (name) => {
-						if (name === "settingsScope" || name === "slots") tryActivate(ctx);
-					});
-				}
-			} catch (err) {
-				console.warn("[localsend] init failed; settings card not registered: " + (err && err.message ? err.message : err));
+				console.warn('[localsend] settings card registration failed: ' + (err && err.message ? err.message : err));
 			}
 		}
 

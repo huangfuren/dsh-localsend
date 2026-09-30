@@ -69,16 +69,19 @@ function report(ctx, message, error) {
   }
 }
 
+// dsh 0.2.0：宿主从 Config schema 自动生成设置卡片，只有标 .volatile() 的字段会进表单。
+// ⚠️ volatile 字段递交到插件时是 cosmokit 的 Volatile<T> 包装，必须 .get() 取值。
+// 读取统一走 readConfig()，同时兼容旧版裸值与新版包装两种形态。
 export const Config = Schema.object({
-  alias: Schema.string().default('').description('Sender alias shown on the receiver. Empty = auto (hostname).'),
-  port: Schema.number().default(DEFAULT_PORT).description('Target LocalSend port.'),
-  scanTimeoutMs: Schema.number().default(SCAN_TIMEOUT_MS).description('Per-host scan timeout in ms.'),
-  acceptTimeoutMs: Schema.number().default(PREPARE_TIMEOUT_MS).description('Wait for receiver accept in ms.'),
-  uploadTimeoutMs: Schema.number().default(UPLOAD_TIMEOUT_MS).description('Per-file upload timeout in ms.'),
-  maxFileBytes: Schema.number().default(MAX_FILE_BYTES).description('Per-file size limit in bytes (v1 reads whole files into memory).'),
-  sharePort: Schema.number().default(0).description('Share server listen port. 0 = random available port (recommended).'),
-  shareExpiresIn: Schema.number().default(3600).description('Default share link validity in seconds. 0 = no expiry.'),
-  sharePassword: Schema.string().default('').description('Default share download password. Empty = no password.'),
+  alias: Schema.string().default('').volatile().description('Sender alias shown on the receiver. Empty = auto (hostname).'),
+  port: Schema.number().default(DEFAULT_PORT).volatile().description('Target LocalSend port.'),
+  scanTimeoutMs: Schema.number().default(SCAN_TIMEOUT_MS).volatile().description('Per-host scan timeout in ms.'),
+  acceptTimeoutMs: Schema.number().default(PREPARE_TIMEOUT_MS).volatile().description('Wait for receiver accept in ms.'),
+  uploadTimeoutMs: Schema.number().default(UPLOAD_TIMEOUT_MS).volatile().description('Per-file upload timeout in ms.'),
+  maxFileBytes: Schema.number().default(MAX_FILE_BYTES).volatile().description('Per-file size limit in bytes (v1 reads whole files into memory).'),
+  sharePort: Schema.number().default(0).volatile().description('Share server listen port. 0 = random available port (recommended).'),
+  shareExpiresIn: Schema.number().default(3600).volatile().description('Default share link validity in seconds. 0 = no expiry.'),
+  sharePassword: Schema.string().default('').volatile().description('Default share download password. Empty = no password.'),
   dshProfileDir: Schema.string().default('').description('DSH home dir used to resolve installed plugin names. Empty = ~/.dsh.'),
 })
 
@@ -100,23 +103,25 @@ export function apply(ctx, config = {}) {
     dshProfileDir: '',
     ...config,
   }
-  // 当前生效配置(默认值 → 组合层 base → 用户设置层);与官方 installSettingsSection 同款模式。
+  // dsh 0.2.0：ctx.settings 是 SettingsForms，只有 configure/describe/update/...，
+  // 旧的 settings.register(ns, schema, opts) 已删除 —— 由宿主读 Config 自动生成卡片。
+  // 这里不再自行注册段落，只声明「允许自动生成」（auto 默认 true，可省略）。
   let activeConfig = () => entryConfig
   try {
     ctx.inject(['settings'], (sctx) => {
       try {
-        const scope = sctx.settings.register(SETTINGS_NAMESPACE, Config, { base: entryConfig })
-        activeConfig = () => scope.get()
-        sctx.effect(() => () => {
-          activeConfig = () => entryConfig
-        })
+        if (typeof sctx.settings?.configure === 'function') {
+          sctx.effect(() => sctx.settings.configure({ auto: true }, sctx), 'localsend: settings page policy')
+        }
       } catch (err) {
-        report(ctx, 'settings section unavailable; falling back to the entry config', err)
+        report(ctx, 'settings policy registration failed; host default applies', err)
       }
     })
   } catch (err) {
     report(ctx, 'settings injection unavailable; falling back to the entry config', err)
   }
+  // volatile 字段在 0.2.0 是 Volatile<T> 包装；旧宿主给的是裸值。双形态取值。
+  const readValue = (v) => (v !== null && typeof v === 'object' && typeof v.get === 'function' ? v.get() : v)
   const getConfig = () => {
     let c
     try {
@@ -125,7 +130,9 @@ export function apply(ctx, config = {}) {
       report(ctx, 'config resolution failed; using entry config', err)
       c = entryConfig
     }
-    return { ...c, alias: c.alias || defaultAlias() }
+    const out = {}
+    for (const k of Object.keys(c || {})) out[k] = readValue(c[k])
+    return { ...out, alias: out.alias || defaultAlias() }
   }
 
   try {

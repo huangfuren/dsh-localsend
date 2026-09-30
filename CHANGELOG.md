@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.1 (2026-09-30)
+
+- **修复设置卡片崩溃导致「内置插件」页签空白**：卡片在 `useEffect` 里调用 `face.localePreference()`，
+  但注入的 `face` 只提供了 `readValues` / `saveValues`，调用即抛 `TypeError`，
+  整张卡片连同面板被 React 摘掉 —— 表现为在 设置 → 内置插件 里选中「LocalSend 局域网传输」后下方全空。
+  现在 `face` 提供 `localePreference()`（优先宿主 locale 服务，缺失时回退浏览器语言），
+  调用侧同时加能力探测 + `try/catch`：旧版 `face` 缺这个方法时只损失语言切换，不再影响卡片渲染。
+- 兼容性：不新增宿主 API 依赖，对 dsh 0.1.x 与 0.2.0-rc.1 均安全。
+
 ## 0.4.0 (2026-09-12)
 
 - **新增 `localsend_smb_push`**:`接收方无需安装任何软件` 时把文件/文件夹经 SMB 文件共享推送到目标机器的**指定目录**。
