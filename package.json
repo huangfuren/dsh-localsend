@@ -45,7 +45,7 @@
     "@deepseek-ai/dsh-client-ui-slots": ">=0.1.0-rc.6 <1.0.0"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh-tools": "0.1.0-rc.6"
+    "@deepseek-ai/dsh-tools": "0.1.0-rc.8"
   },
   "engines": {
     "node": ">=22.19",
