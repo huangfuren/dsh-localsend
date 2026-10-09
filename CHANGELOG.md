@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **文档：README 默认语言改为中文并同步中英两版内容。** 语言约定统一为 `README.md`（中文，默认入口）+
+  `README.en.md`（英文），两版顶部互链；`README.zh-CN.md` 已并入 `README.md` 并删除。
+  同时修正中文版遗留的版本号（0.3.0 → 0.4.1）、补齐 `localsend_smb_push` 与 peer 范围的准确描述，
+  使中英两版与当前包状态一致。`files` 改为分发 `README.en.md`。
+
 ## 0.4.1 (2026-09-30)
 
 - **修复设置卡片崩溃导致「内置插件」页签空白**：卡片在 `useEffect` 里调用 `face.localePreference()`，
