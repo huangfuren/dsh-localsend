@@ -27,8 +27,12 @@ test('mimeOf maps known and falls back', () => {
 })
 
 test('fileNameOf strips illegal characters', () => {
-  assert.equal(fileNameOf('C:\\x\\y\\a:b?.txt'), 'a_b_.txt')
-  assert.equal(fileNameOf('/tmp/ok.txt'), 'ok.txt')
+  // 用平台自己的分隔符拼路径。此前这里写死了 Windows 路径 'C:\\x\\y\\a:b?.txt'，
+  // 在 POSIX 上 path.basename 不把反斜杠当分隔符 —— 整串被留下，断言随之失败。
+  // 实现是对的（Linux 文件名里 \ 是合法字符，不该被当成分隔符），所以修的是用例：
+  // 第一次跑三平台 CI 就把这个只在 Windows 上成立的假设暴露了出来。
+  assert.equal(fileNameOf(['x', 'y', 'a:b?.txt'].join(path.sep)), 'a_b_.txt')
+  assert.equal(fileNameOf(['', 'tmp', 'ok.txt'].join(path.sep)), 'ok.txt')
 })
 
 test('errorText maps statuses', () => {
