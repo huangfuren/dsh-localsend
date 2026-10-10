@@ -42,10 +42,10 @@ test('errorText maps statuses', () => {
 })
 
 test('computeSubnet derives /24 base', () => {
-  const s = computeSubnet('192.168.71.66', '255.255.255.0')
-  assert.equal(s.networkBase, '192.168.71.0')
+  const s = computeSubnet('192.168.1.66', '255.255.255.0')
+  assert.equal(s.networkBase, '192.168.1.0')
   assert.equal(s.prefix, 24)
-  assert.equal(s.selfIp, '192.168.71.66')
+  assert.equal(s.selfIp, '192.168.1.66')
 })
 
 test('parseCidr accepts /24 and rejects bad input', () => {

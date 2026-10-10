@@ -10,6 +10,9 @@ window.__ModuleLoader__.load({
 		let react = require("react");
 
 		const SETTINGS_NS = "localsend";
+		// 目标机档案（SMB 推送）在 settings 里的键名，与 index.js 的 Config 字段一致。
+		const PROFILE_KEY = "smbProfiles";
+		const PROFILE_FIELDS = ["name", "host", "share", "destDir", "username", "password"];
 		// 与 lib/constants.js 保持一致的前端回显默认值(仅提示用,不参与 Host 校验)。
 		const DEFAULTS = {
 			alias: "",
@@ -21,6 +24,7 @@ window.__ModuleLoader__.load({
 			sharePort: 0,
 			shareExpiresIn: 3600,
 			sharePassword: "",
+			smbProfiles: [],
 		};
 
 		// dsh 0.2.0：settingsScope 已删除。设置读写走 ctx.configForms（宿主 settings 域
@@ -41,6 +45,19 @@ window.__ModuleLoader__.load({
 				sharePort: "分享服务端口(0=随机)",
 				shareExpiresIn: "分享链接有效期(秒)",
 				sharePassword: "分享下载密码(空=无密码)",
+				profilesTitle: "目标机档案（SMB 推送）",
+				profilesHint: "配置一次，之后用 profile=\"档案名\" 直接推送。密码以明文保存在本机设置文件中，仅建议自用。",
+				profilesEmpty: "尚未配置档案。",
+				profileName: "档案名",
+				profileHost: "目标 IP / 主机名",
+				profileShare: "共享名（如 C$）",
+				profileDestDir: "共享下子目录（如 Users\\me\\Desktop）",
+				profileUser: "账户（空=来宾）",
+				profilePassword: "密码",
+				profileAdd: "＋ 添加档案",
+				profileRemove: "删除",
+				profileInvalid: "校验失败：每条档案都需要「档案名」和「目标 IP / 主机名」。",
+				profileDuplicate: "校验失败：档案名不能重复。",
 				save: "保存",
 				saving: "保存中…",
 				saved: "已保存。新会话的工具调用将使用更新后的配置。",
@@ -60,6 +77,19 @@ window.__ModuleLoader__.load({
 				sharePort: "Share server port (0 = random)",
 				shareExpiresIn: "Share link validity (seconds)",
 				sharePassword: "Share download password (empty = none)",
+				profilesTitle: "Target profiles (SMB push)",
+				profilesHint: "Configure once, then push with profile=\"<name>\". Passwords are stored in plain text in the local settings file — intended for your own machines only.",
+				profilesEmpty: "No profiles configured yet.",
+				profileName: "Profile name",
+				profileHost: "Target IP / hostname",
+				profileShare: "Share name (e.g. C$)",
+				profileDestDir: "Sub-dir under share (e.g. Users\\me\\Desktop)",
+				profileUser: "Account (empty = guest)",
+				profilePassword: "Password",
+				profileAdd: "+ Add profile",
+				profileRemove: "Remove",
+				profileInvalid: "Validation failed: every profile needs a name and a target IP/hostname.",
+				profileDuplicate: "Validation failed: profile names must be unique.",
 				save: "Save",
 				saving: "Saving…",
 				saved: "Saved. New tool calls will use the updated configuration.",
@@ -92,11 +122,31 @@ window.__ModuleLoader__.load({
 			footer: { display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" },
 			button: { border: "1px solid var(--dsw-alias-border-l2)", background: "var(--dsw-alias-bg-layer-3)", color: "var(--dsw-alias-label-primary)", borderRadius: "8px", height: "32px", padding: "0 14px", fontSize: "13px", cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 },
 			msg: { margin: 0, fontSize: "12px", color: "var(--dsw-alias-label-secondary)" },
-			err: { margin: 0, fontSize: "12px", color: "var(--dsw-alias-label-error)" }
+			err: { margin: 0, fontSize: "12px", color: "var(--dsw-alias-label-error)" },
+			sectionTitle: { margin: "4px 0 0", fontSize: "13px", fontWeight: 500, color: "var(--dsw-alias-label-primary)" },
+			subCard: { border: "1px solid var(--dsw-alias-border-l2)", borderRadius: "8px", padding: "12px", display: "flex", flexDirection: "column", gap: "8px" },
+			subHead: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" },
+			grid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" },
+			smallField: { display: "flex", flexDirection: "column", gap: "4px" },
+			smallLabel: { fontSize: "12px", color: "var(--dsw-alias-label-secondary)" },
+			iconBtn: { border: "1px solid var(--dsw-alias-border-l2)", background: "none", color: "var(--dsw-alias-label-error)", borderRadius: "6px", height: "26px", padding: "0 10px", fontSize: "12px", cursor: "pointer" },
+			addBtn: { border: "1px dashed var(--dsw-alias-border-l2)", background: "none", color: "var(--dsw-alias-label-secondary)", borderRadius: "8px", height: "32px", fontSize: "13px", cursor: "pointer", width: "100%" }
 		};
 
 		const h = react.createElement;
 		const FIELDS = ["alias", "port", "scanTimeoutMs", "acceptTimeoutMs", "uploadTimeoutMs", "maxFileBytes", "sharePort", "shareExpiresIn", "sharePassword"];
+
+		// 归一化档案数组:字段齐全、去首尾空格,丢掉既无档案名又无主机的空行。
+		function normalizeProfiles(raw) {
+			return (Array.isArray(raw) ? raw : []).map((p) => ({
+				name: String(p && p.name != null ? p.name : "").trim(),
+				host: String(p && p.host != null ? p.host : "").trim(),
+				share: String(p && p.share != null ? p.share : "").trim(),
+				destDir: String(p && p.destDir != null ? p.destDir : "").trim(),
+				username: String(p && p.username != null ? p.username : "").trim(),
+				password: String(p && p.password != null ? p.password : ""),
+			})).filter((p) => p.name !== "" || p.host !== "");
+		}
 
 		function LocalsendCard(props) {
 			const face = props.localsendCard;
@@ -133,6 +183,35 @@ window.__ModuleLoader__.load({
 				setDraft((d) => Object.assign({}, d, { [key]: value }));
 			}
 
+			function profilesOf(d) {
+				return Array.isArray(d[PROFILE_KEY]) ? d[PROFILE_KEY] : [];
+			}
+
+			function setProfileField(i, key, value) {
+				setSaved(false); setError("");
+				setDraft((d) => {
+					const list = profilesOf(d).slice();
+					list[i] = Object.assign({}, list[i], { [key]: value });
+					return Object.assign({}, d, { [PROFILE_KEY]: list });
+				});
+			}
+
+			function addProfile() {
+				setSaved(false); setError("");
+				setDraft((d) => Object.assign({}, d, {
+					[PROFILE_KEY]: profilesOf(d).concat([{ name: "", host: "", share: "", destDir: "", username: "", password: "" }]),
+				}));
+			}
+
+			function removeProfile(i) {
+				setSaved(false); setError("");
+				setDraft((d) => {
+					const list = profilesOf(d).slice();
+					list.splice(i, 1);
+					return Object.assign({}, d, { [PROFILE_KEY]: list });
+				});
+			}
+
 			async function onSave() {
 				setSaving(true); setSaved(false); setError("");
 				try {
@@ -151,6 +230,15 @@ window.__ModuleLoader__.load({
 						}
 						patch[k] = n;
 					}
+					// 目标机档案:归一化 + 校验(每条必须有档案名与主机,档案名唯一)。
+					const profs = normalizeProfiles(draft[PROFILE_KEY]);
+					const seen = {};
+					for (const p of profs) {
+						if (!p.name || !p.host) throw new Error(T.profileInvalid);
+						if (seen[p.name]) throw new Error(T.profileDuplicate);
+						seen[p.name] = true;
+					}
+					patch[PROFILE_KEY] = profs;
 					await face.saveValues(patch);
 					const vals = await face.readValues();
 					setDraft(Object.assign({}, DEFAULTS, vals));
@@ -175,6 +263,36 @@ window.__ModuleLoader__.load({
 				])
 			);
 
+			const smallField = (i, key, label, value, placeholder, type) =>
+				h("div", { key, style: S.smallField }, [
+					h("label", { style: S.smallLabel }, label),
+					h("input", {
+						type: type || "text",
+						style: S.input,
+						placeholder: placeholder || "",
+						autoComplete: "off",
+						value: (value == null) ? "" : String(value),
+						onChange: (e) => setProfileField(i, key, e.target.value),
+					}),
+				]);
+
+			const profileRows = profilesOf(draft).map((p, i) =>
+				h("div", { key: "profile-" + i, style: S.subCard }, [
+					h("div", { style: S.subHead }, [
+						h("span", { style: S.sectionTitle }, "#" + (i + 1) + (p.name ? "  ·  " + p.name : "")),
+						h("button", { type: "button", style: S.iconBtn, onClick: () => removeProfile(i) }, T.profileRemove),
+					]),
+					h("div", { style: S.grid }, [
+						smallField(i, "name", T.profileName, p.name, "书房台式机"),
+						smallField(i, "host", T.profileHost, p.host, "192.0.2.10"),
+						smallField(i, "share", T.profileShare, p.share, "C$"),
+						smallField(i, "destDir", T.profileDestDir, p.destDir, "Users\\me\\Desktop"),
+						smallField(i, "username", T.profileUser, p.username, "HOST\\user"),
+						smallField(i, "password", T.profilePassword, p.password, "", "password"),
+					]),
+				])
+			);
+
 			return h("section", { style: open ? { ...S.card, ...S.cardOpen } : S.card }, [
 				h("button", {
 					type: "button", style: S.header, "aria-expanded": open,
@@ -190,6 +308,11 @@ window.__ModuleLoader__.load({
 				open ? h("div", { style: S.body }, [
 					...inputRows,
 					h("p", { style: S.hint }, T.hint),
+					h("p", { style: S.sectionTitle }, T.profilesTitle),
+					h("p", { style: S.hint }, T.profilesHint),
+					...profileRows,
+					profileRows.length === 0 ? h("p", { style: S.hint }, T.profilesEmpty) : null,
+					h("button", { type: "button", style: S.addBtn, onClick: addProfile }, T.profileAdd),
 					h("div", { style: S.footer }, [
 						h("button", { style: S.button, disabled: saving, onClick: onSave }, saving ? T.saving : T.save),
 						saved ? h("p", { style: S.msg }, T.saved) : null,
@@ -225,6 +348,7 @@ window.__ModuleLoader__.load({
 							const out = {};
 							if (v && typeof v === 'object') {
 								for (const k of FIELDS) if (typeof v[k] !== 'undefined') out[k] = v[k];
+								if (Array.isArray(v[PROFILE_KEY])) out[PROFILE_KEY] = v[PROFILE_KEY];
 							}
 							return out;
 						} catch {

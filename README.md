@@ -6,7 +6,7 @@
 
 零配置、无凭据、无第三方运行时依赖、无任何硬编码路径 —— 自动探测本机网卡子网、自动取主机名作为发送方别名，**装好即用**。包含 host 工具（agent 调用）与浏览器设置卡片（界面配置）。
 
-> 当前版本：**0.4.1**。兼容 DeepSeek Harness **0.1.x** 与 **0.2.0-rc.1**（peer 范围 `>=0.1.0-rc.6 <1.0.0`）；Node.js ≥ 22.19；支持 Windows / macOS / Linux。
+> 当前版本：**0.5.0**。兼容 DeepSeek Harness **0.1.x** 与 **0.2.0-rc.1**（peer 范围 `>=0.1.0-rc.6 <1.0.0`）；Node.js ≥ 22.19；支持 Windows / macOS / Linux。
 
 ## 原理
 
@@ -34,6 +34,10 @@ LocalSend 没有官方 CLI，但每台 LocalSend 接收端都是一个标准 HTT
 
 **接收方无需装任何软件**时，把文件/文件夹经 SMB 文件共享**自动**推送到目标机器的**指定目录**：`target`（IP/主机名）+ `share`（共享名）+ `destDir`（共享下子目录，可空 = 共享根）+ `files`；`username`/`password` 可选（匿名 = 来宾登录）。目录自动打包成 zip 再复制。前提：接收方预先开一个共享文件夹并给发送方写权限。这是「无软件 + 指定 IP + 指定落盘目录 + 全自动」诉求的唯一可行通道（LocalSend 通道强制接收方装 App，浏览器链接通道无法指定落盘目录）。
 
+**目标机档案（推荐用法）**：在设置卡片里为每台目标机建一条档案（档案名 / 目标 IP / 共享名 / 共享下子目录 / 账户 / 密码），之后调用只需 `profile="书房台式机"` + `files` —— 其余参数由档案提供，任何显式参数按字段覆盖档案。于是「把本机目录推到指定机器桌面」从「每次重填 5 个参数」变成「配一次 + 一条命令」；落到桌面即 `share="C$"` + `destDir="Users\<用户名>\Desktop"`（`C$` 是 Windows 默认就存在的管理共享）。
+
+> 边界说明：档案只保存「通道怎么走」，不会凭空造出通道。接收方仍需**一次性**开好一条访问通道——管理共享 `C$` 默认就在（若目标机账户是微软账户且非内置 Administrator，需改一次注册表 `LocalAccountTokenFilterPolicy=1`），或自建共享并给发送方写权限。此后每次推送接收方**零操作**。
+
 ## 功能
 
 - **五件工具**：
@@ -43,7 +47,7 @@ LocalSend 没有官方 CLI，但每台 LocalSend 接收端都是一个标准 HTT
   - `localsend_send_plugin` — 把一个 DSH 插件目录打包成自包含分发 zip（排除 `node_modules`/`.git`，内含 `dsh-plugin.manifest.json` 清单 + `INSTALL.md` 安装卡），经临时 HTTP 链接分享；**接收方只要浏览器就能拿到**，无需安装 LocalSend 或任何软件，解压后按 `INSTALL.md` 一条命令装入。`plugin` 参数支持绝对目录路径或已安装插件名（只读地在 `~/.dsh/profiles/*/node_modules` 下解析，分发 dsh-localsend 自身只需 `plugin="dsh-localsend"`）；
   - `localsend_smb_push` — 见上方「SMB 推送模式」。
 - **文件与文件夹混发**：同一列表里可同时给文件和目录，目录各自打成 zip 发送。
-- **GUI 配置卡片**：「设置 → 插件配置」中的「LocalSend 局域网传输」卡片，可编辑别名/端口/各类超时/单文件上限/分享端口/有效期/密码，保存即生效（新会话的工具调用生效）。
+- **GUI 配置卡片**：「设置 → 插件配置」中的「LocalSend 局域网传输」卡片，可编辑别名/端口/各类超时/单文件上限/分享端口/有效期/密码，并可增删**目标机档案**（含凭据），保存即生效（新会话的工具调用生效）。
 - **健壮性**：别名重名/模糊匹配有提示；错误码（403 拒绝、409 繁忙、429 限流、422 校验失败等）映射为可读文案；失败自动取消会话；跳过符号链接与空目录；单文件/单包上限默认 1 GiB（可配置）。
 - **安全默认**：仅局域网；扫描只读；发送方别名默认主机名；接收端人工「接受」即授权闸门；自签 HTTPS + sha256 端到端校验；分享链接为一次性（随机 token）。
 - **开箱即用/可分发**：无构建步骤（`index.js`/`client.js` 即产物）、无本机路径残留，支持 `dsh plugin` 安装、`npm pack` 或手动 link。
@@ -53,16 +57,16 @@ LocalSend 没有官方 CLI，但每台 LocalSend 接收端都是一个标准 HTT
 ### 推荐：DSH 管理安装（已发布 GitHub）
 
 ```bash
-dsh plugin --profile web add git+https://github.com/huangfuren/dsh-localsend.git#v0.4.1
+dsh plugin --profile web add git+https://github.com/huangfuren/dsh-localsend.git#v0.5.0
 ```
 
-`#v0.4.1` 固定到该发布版本；去掉后缀则跟随 `main` 分支最新提交。安装后**重启 DSH**：新会话出现五个工具，GUI 刷新后「设置 → 插件配置」出现卡片。
+`#v0.5.0` 固定到该发布版本；去掉后缀则跟随 `main` 分支最新提交。安装后**重启 DSH**：新会话出现五个工具，GUI 刷新后「设置 → 插件配置」出现卡片。
 
 ### 本地/离线安装
 
 1. 把 `dsh-localsend` 目录放到你的插件目录（如 `dsh-plugin\`）；
 2. 在 profile 的 `package.json` 的 `dependencies` 加 `"dsh-localsend": "file:<路径>"`（或 `link:<绝对路径>`），并在 `dsh.profile.bundles` 加入 `dsh-localsend`；
-3. 或对目录执行 `npm pack`，在 profile 目录 `npm/pnpm install <dsh-localsend-0.4.1.tgz>`（需联网解析 peer）；
+3. 或对目录执行 `npm pack`，在 profile 目录 `npm/pnpm install <dsh-localsend-0.5.0.tgz>`（需联网解析 peer）；
 4. 重启 DSH。
 
 ## 配置（GUI 卡片 / settings 命名空间 `localsend`）
@@ -78,6 +82,7 @@ dsh plugin --profile web add git+https://github.com/huangfuren/dsh-localsend.git
 | `sharePort` | 0 | 分享服务监听端口（0 = 随机） |
 | `shareExpiresIn` | 3600 | 分享链接有效期（秒），0 = 不过期 |
 | `sharePassword` | "" | 分享下载密码（空 = 无密码） |
+| `smbProfiles` | `[]` | 目标机档案数组，每项 `{name, host, share, destDir, username, password}`；配一次后 `localsend_smb_push` 只需 `profile="名"`（凭据明文存储，见「安全约定」） |
 | `dshProfileDir` | `~/.dsh` | 按名解析已安装插件时的 DSH 主目录（只读） |
 
 全部可留默认；留空即用内置默认值。
@@ -101,8 +106,9 @@ dsh plugin --profile web add git+https://github.com/huangfuren/dsh-localsend.git
 ### SMB 推送
 
 > 把 `D:\打包\bundle` 推到 10.0.0.30 的「共享文件夹」下的 dsh-sync 目录
+> 把 `D:\打包\bundle` 推到「书房台式机」的桌面
 
-工具会打包目录并自动复制到目标共享的指定目录，无需接收方点「接受」，前提是接收方已开共享并给发送方写权限。
+工具会打包目录并自动复制到目标共享的指定目录，无需接收方点「接受」，前提是接收方已开共享并给发送方写权限。第二条走的是**目标机档案**：先在设置卡片里把「书房台式机」配成 `C$` + `Users\<用户名>\Desktop`，之后每次只说一句话即可。
 
 ## 安全约定
 
@@ -110,6 +116,7 @@ dsh plugin --profile web add git+https://github.com/huangfuren/dsh-localsend.git
 - 探测只读（`info`）；发送必须是「用户明确点名的目标 + 用户明确点名的文件/文件夹」。
 - 接收端默认需人工点「接受」（或目标机已开自动接收）；协议无共享密钥，弹窗即授权闸门。
 - 发送端只持有文件内容，不读取、不存储任何凭据；接收端返回一律视为不可信数据。
+- **例外——SMB 目标机档案**：若你在设置卡片里配置了档案，档案中的凭据（含密码）以**明文**保存在本机 DSH settings 文件里，并随该文件被同步/备份而流转。这是为「自己的多台机器之间推送」设计的取舍，**请勿在共享账号或多人共用的机器上启用**。
 - 局域网传输为自签 HTTPS；sha256 校验失败（HTTP 422）会明确报错。
 - 分享链接为一次性随机 token；下载完成后自动关闭服务器；可选密码保护。
 
@@ -121,7 +128,7 @@ npm test        # 单测 + 本地 mock 接收端端到端（zip 打包、上传�
 npm run verify
 ```
 
-测试覆盖：zip 写入/解析回读、CRC-32、目录打包与清理、mock 端到端「目录 → 自动 zip → 上传」、sha256 不匹配 422、取消会话、SMB 的 UNC 拼接与 `net use`/`robocopy` 参数等。
+测试覆盖：zip 写入/解析回读、CRC-32、目录打包与清理、mock 端到端「目录 → 自动 zip → 上传」、sha256 不匹配 422、取消会话、SMB 的 UNC 拼接与 `net use`/`robocopy` 参数（含「目标只出现一次」的回归用例）、目标机档案解析（`findProfile` 查找/报错、`mergeProfile` 的「显式参数覆盖档案」）。
 
 ## 兼容性说明
 

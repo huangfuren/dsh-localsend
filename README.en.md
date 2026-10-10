@@ -4,9 +4,9 @@ English | [中文](README.md)
 
 LAN file/folder transfer plus browser download-link sharing: let DeepSeek Harness send files (or **folders, auto-packed into a zip**) over the conversation to any machine on the same LAN running [LocalSend](https://github.com/localsend/localsend), or **generate a browser download link** (the receiver installs nothing).
 
-Zero configuration, no credentials, no third-party runtime dependencies, no hard-coded paths — it detects the local NIC subnet automatically and uses the hostname as the sender alias, so it works **the moment it is installed**. Ships host tools (for the agent) and a browser settings card (for the UI).
+Zero configuration by default — the LocalSend and share channels need no credentials, there are no third-party runtime dependencies and no hard-coded paths — it detects the local NIC subnet automatically and uses the hostname as the sender alias, so it works **the moment it is installed**. Ships host tools (for the agent) and a browser settings card (for the UI).
 
-> Current version: **0.4.1**. Compatible with DeepSeek Harness **0.1.x** and **0.2.0-rc.1** (peer range `>=0.1.0-rc.6 <1.0.0`); Node.js ≥ 22.19; supports Windows / macOS / Linux.
+> Current version: **0.5.0**. Compatible with DeepSeek Harness **0.1.x** and **0.2.0-rc.1** (peer range `>=0.1.0-rc.6 <1.0.0`); Node.js ≥ 22.19; supports Windows / macOS / Linux.
 
 ## How it works
 
@@ -34,6 +34,10 @@ Optional password protection (HTTP Basic Auth) and configurable port / lifetime 
 
 When **the receiver installs nothing at all**, push files/folders over an SMB share **automatically** into a **specific directory** on the target machine: `target` (IP/hostname) + `share` (share name) + `destDir` (subdirectory under the share; empty = share root) + `files`; `username`/`password` optional (anonymous = guest). Directories are auto-packed into a zip before copy. Prerequisite: the receiver pre-creates a share and grants the sender write access. This is the only workable channel for "no software + specific IP + specific destination directory + fully automatic" (the LocalSend channel forces the receiver to install the app; the browser-link channel cannot name a destination directory).
 
+**Target profiles (recommended)** — save one profile per target machine in the settings card (name / target IP / share / sub-directory / account / password). Afterwards a call only needs `profile="书房台式机"` plus `files`; the profile supplies everything else, and any explicit argument overrides the matching field. That turns "push this local folder to the desktop of that machine" from "retype five parameters every time" into "configure once + one command". To land on the desktop, use `share="C$"` + `destDir="Users\<user>\Desktop"` (`C$` is the admin share, present by default on Windows).
+
+> Boundary: a profile only stores **how to reach** the channel; it cannot create one. The receiver still needs a **one-time** access channel — the admin share `C$` exists by default (if the target account is a Microsoft account and not the built-in Administrator, set `LocalAccountTokenFilterPolicy=1` once), or a custom share with write access for the sender. After that, every push needs **zero action** on the receiver.
+
 ## Features
 
 - **Five tools**:
@@ -43,7 +47,7 @@ When **the receiver installs nothing at all**, push files/folders over an SMB sh
   - `localsend_send_plugin` — pack a DSH plugin directory into a self-contained distribution zip (excludes `node_modules`/`.git`; contains a `dsh-plugin.manifest.json` manifest + `INSTALL.md` card) and share it over a temporary HTTP link; **the receiver needs only a browser**, no LocalSend or any software, then unzips and runs one install command from `INSTALL.md`. The `plugin` argument accepts an absolute directory path or an installed plugin name (resolved read-only under `~/.dsh/profiles/*/node_modules`; distributing dsh-localsend itself is just `plugin="dsh-localsend"`);
   - `localsend_smb_push` — see "SMB push mode" above.
 - **Mixed files and folders**: one list may hold both files and directories; each directory is packed into its own zip.
-- **GUI settings card**: the "LocalSend LAN transfer" card under Settings → plugin configuration, editing alias / port / timeouts / max file size / share port / expiry / password; saving takes effect immediately (for new sessions' tool calls).
+- **GUI settings card**: the "LocalSend LAN transfer" card under Settings → plugin configuration, editing alias / port / timeouts / max file size / share port / expiry / password, and adding/removing **target profiles** (including credentials); saving takes effect immediately (for new sessions' tool calls).
 - **Robustness**: duplicate/ambiguous aliases are flagged; error codes (403 refused, 409 busy, 429 rate-limited, 422 verification failed, …) map to readable text; failures cancel the session; symlinks and empty directories are skipped; the per-file/per-package cap defaults to 1 GiB (configurable).
 - **Secure by default**: LAN only; scans are read-only; the sender alias defaults to the hostname; the receiver's manual "accept" is the authorization gate; self-signed HTTPS + end-to-end sha256; the share link is one-shot (random token).
 - **Works out of the box / distributable**: no build step (`index.js`/`client.js` are the artifacts), no machine-local path residue; installable via `dsh plugin`, `npm pack`, or a manual link.
@@ -53,16 +57,16 @@ When **the receiver installs nothing at all**, push files/folders over an SMB sh
 ### Recommended: DSH-managed install (published on GitHub)
 
 ```bash
-dsh plugin --profile web add git+https://github.com/huangfuren/dsh-localsend.git#v0.4.1
+dsh plugin --profile web add git+https://github.com/huangfuren/dsh-localsend.git#v0.5.0
 ```
 
-`#v0.4.1` pins that release; drop the suffix to track the latest commit on `main`. After installing, **restart DSH**: new sessions gain the five tools, and after the GUI refreshes the card appears under Settings → plugin configuration.
+`#v0.5.0` pins that release; drop the suffix to track the latest commit on `main`. After installing, **restart DSH**: new sessions gain the five tools, and after the GUI refreshes the card appears under Settings → plugin configuration.
 
 ### Local / offline install
 
 1. Put the `dsh-localsend` directory into your plugin folder (e.g. `dsh-plugin\`);
 2. Add `"dsh-localsend": "file:<path>"` (or `link:<absolute path>`) to the profile's `package.json` `dependencies`, and add `dsh-localsend` to `dsh.profile.bundles`;
-3. Or run `npm pack` on the directory and, in the profile directory, `npm/pnpm install <dsh-localsend-0.4.1.tgz>` (network needed to resolve peers);
+3. Or run `npm pack` on the directory and, in the profile directory, `npm/pnpm install <dsh-localsend-0.5.0.tgz>` (network needed to resolve peers);
 4. Restart DSH.
 
 ## Configuration (GUI card / settings namespace `localsend`)
@@ -78,6 +82,7 @@ dsh plugin --profile web add git+https://github.com/huangfuren/dsh-localsend.git
 | `sharePort` | 0 | Share server port (0 = random) |
 | `shareExpiresIn` | 3600 | Share link lifetime (seconds), 0 = no expiry |
 | `sharePassword` | "" | Share download password (empty = none) |
+| `smbProfiles` | `[]` | Array of target profiles, each `{name, host, share, destDir, username, password}`; once saved, `localsend_smb_push` only needs `profile="<name>"` (credentials are stored in plain text — see Security notes) |
 | `dshProfileDir` | `~/.dsh` | DSH home used to resolve installed plugins by name (read-only) |
 
 All keys may be left default; empty means the built-in default.
@@ -101,8 +106,9 @@ The tool generates a temporary HTTP download link; the receiver opens it in a br
 ### SMB push
 
 > Push `D:\打包\bundle` to the dsh-sync directory under the "共享文件夹" share on 10.0.0.30
+> Push `D:\打包\bundle` to the desktop of "书房台式机"
 
-The tool packs the directory and copies it automatically into the named directory of the target share, with no "accept" on the receiving side, provided the receiver has opened the share and granted write access.
+The tool packs the directory and copies it automatically into the named directory of the target share, with no "accept" on the receiving side, provided the receiver has opened the share and granted write access. The second example uses a **target profile**: configure "书房台式机" once as `C$` + `Users\<user>\Desktop`, then every later push is a single sentence.
 
 ## Security notes
 
@@ -110,6 +116,7 @@ The tool packs the directory and copies it automatically into the named director
 - Probes are read-only (`info`); a send must be "a target the user named explicitly + files/folders the user named explicitly".
 - The receiver must tap "accept" by default (or has auto-accept on); the protocol has no shared secret, so the dialog is the authorization gate.
 - The sender only holds file contents; it reads and stores no credentials, and treats every receiver response as untrusted data.
+- **Exception — SMB target profiles**: if you save profiles in the settings card, their credentials (including the password) are stored in **plain text** in the local DSH settings file and travel with it whenever it is synced or backed up. This is a deliberate trade-off for pushing between your own machines — **do not enable it on a shared or multi-user machine**.
 - LAN transfer uses self-signed HTTPS; a sha256 mismatch (HTTP 422) surfaces a clear error.
 - The share link is a one-shot random token; the server closes after download; password protection is optional.
 
@@ -121,7 +128,7 @@ npm test        # unit tests + a local mock-receiver end-to-end (zip packing, up
 npm run verify
 ```
 
-Coverage: zip write/parse round-trip, CRC-32, directory packing and cleanup, mock end-to-end "directory → auto zip → upload", sha256 mismatch 422, session cancel, and SMB UNC building with `net use`/`robocopy` arguments.
+Coverage: zip write/parse round-trip, CRC-32, directory packing and cleanup, mock end-to-end "directory → auto zip → upload", sha256 mismatch 422, session cancel, SMB UNC building with `net use`/`robocopy` arguments (including a regression case asserting the target appears exactly once), and target-profile resolution (`findProfile` lookup/error, `mergeProfile`'s "explicit args override the profile").
 
 ## Compatibility notes
 
