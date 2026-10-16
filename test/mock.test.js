@@ -9,6 +9,7 @@ import path from 'node:path'
 
 import { cancelSession, prepareUpload, sha256hex, uploadFile } from '../lib/protocol.js'
 import { cleanupTemps, resolveSendTargets } from '../lib/pack.js'
+import { createShareSession } from '../lib/share.js'
 import { sendFiles } from '../lib/transfer.js'
 
 /** 极简 mock 接收端:记录每个会话的元信息,upload 校验 sha256。 */
@@ -143,6 +144,27 @@ test('end-to-end: folder is auto-packed to zip and uploaded', async () => {
     await cleanupTemps(temps)
   } finally {
     server.close()
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+// 回归：显式 expiresIn=0 必须得到「不过期」会话 —— 旧实现的 `Number(x) || 3600` 把 0 吞成 3600，
+// 使 README 与工具描述承诺的「0 = 不过期」在参数层根本不可达。顺带锁住 port=0 的自动分配。
+test('createShareSession: explicit expiresIn=0 means no expiry', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ls-share-'))
+  const f = path.join(dir, 'a.txt')
+  fs.writeFileSync(f, 'hello')
+  try {
+    const session = await createShareSession({ files: [f], expiresIn: 0, port: 0, alias: 'unit-tester' })
+    try {
+      assert.equal(session.expires, null, 'expiresIn=0 应得到 null（不过期）')
+      assert.ok(session.port > 0, 'port=0 应自动分配一个可用端口')
+      assert.match(session.url, /^http:\/\/[^/]+:\d+\/dl\//)
+      assert.equal(session.files.length, 1)
+    } finally {
+      session.close()
+    }
+  } finally {
     fs.rmSync(dir, { recursive: true, force: true })
   }
 })

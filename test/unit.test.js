@@ -10,6 +10,7 @@ import {
   buildFileEntries, buildSenderInfo, fileNameOf, mimeOf, sha256hex, uuid,
 } from '../lib/protocol.js'
 import { errorText } from '../lib/constants.js'
+import { resolveShareOptions } from '../lib/share.js'
 
 test('sha256hex matches known digest', () => {
   assert.equal(sha256hex(Buffer.from('abc')), 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad')
@@ -78,4 +79,39 @@ test('buildFileEntries computes size and sha256', async () => {
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })
   }
+})
+
+// ── 分享参数解析：显式参数 > 设置项（shareExpiresIn / sharePort / sharePassword）> 内置默认 ──
+test('resolveShareOptions falls back to built-in defaults when nothing is given', () => {
+  assert.deepEqual(resolveShareOptions({}, {}), { password: '', expiresIn: 3600, port: 0 })
+  assert.deepEqual(resolveShareOptions(), { password: '', expiresIn: 3600, port: 0 })
+})
+
+// 回归：旧实现写 `Number(x) || 3600`，把显式传入的 0（README 与工具描述都声明为「无有效期」）
+// 当成假值吞成了 3600；端口同理。0 必须原样保留。
+test('resolveShareOptions keeps an explicit 0 (no expiry / random port)', () => {
+  const r = resolveShareOptions({ expiresIn: 0, port: 0 }, { shareExpiresIn: 600, sharePort: 8080 })
+  assert.equal(r.expiresIn, 0)
+  assert.equal(r.port, 0)
+})
+
+test('resolveShareOptions falls back to settings when args omit the field', () => {
+  const r = resolveShareOptions({}, { shareExpiresIn: 600, sharePort: 8080, sharePassword: 'pw' })
+  assert.deepEqual(r, { password: 'pw', expiresIn: 600, port: 8080 })
+})
+
+test('resolveShareOptions: explicit args win; empty password overrides to none', () => {
+  const cfg = { shareExpiresIn: 600, sharePort: 8080, sharePassword: 'pw' }
+  assert.deepEqual(
+    resolveShareOptions({ expiresIn: 120, port: 9000, password: 'x' }, cfg),
+    { password: 'x', expiresIn: 120, port: 9000 },
+  )
+  assert.equal(resolveShareOptions({ password: '' }, cfg).password, '')
+})
+
+test('resolveShareOptions clamps invalid input instead of propagating it', () => {
+  assert.equal(resolveShareOptions({ expiresIn: 'abc' }, {}).expiresIn, 3600)
+  assert.equal(resolveShareOptions({ expiresIn: -5 }, {}).expiresIn, 0)
+  assert.equal(resolveShareOptions({ port: 3000.7 }, {}).port, 3000)
+  assert.equal(resolveShareOptions({ port: -1 }, {}).port, 0)
 })

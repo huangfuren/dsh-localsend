@@ -87,6 +87,10 @@ dsh plugin --profile web add git+https://github.com/huangfuren/dsh-localsend.git
 
 全部可留默认；留空即用内置默认值。
 
+`sharePort` / `shareExpiresIn` / `sharePassword` 同时是 `localsend_share` 与 `localsend_send_plugin`
+对应工具参数的默认值：不显式传参时用它们，显式传参时以参数为准（含 `expiresIn=0` 表示不过期、
+`password=""` 表示本次不要密码）。
+
 ## 使用示例
 
 ### LocalSend 模式

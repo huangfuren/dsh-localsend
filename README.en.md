@@ -87,6 +87,11 @@ dsh plugin --profile web add git+https://github.com/huangfuren/dsh-localsend.git
 
 All keys may be left default; empty means the built-in default.
 
+`sharePort` / `shareExpiresIn` / `sharePassword` also act as the defaults for the matching tool
+arguments of `localsend_share` and `localsend_send_plugin`: omit an argument and the setting applies,
+pass it explicitly and the argument wins (including `expiresIn=0` for "no expiry" and `password=""`
+for "no password this time").
+
 ## Examples
 
 ### LocalSend mode
