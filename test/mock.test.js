@@ -8,6 +8,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { cancelSession, prepareUpload, sha256hex, uploadFile } from '../lib/protocol.js'
+import { probeDevice } from '../lib/discovery.js'
 import { cleanupTemps, resolveSendTargets } from '../lib/pack.js'
 import { createShareSession } from '../lib/share.js'
 import { sendFiles } from '../lib/transfer.js'
@@ -169,5 +170,55 @@ test('createShareSession: explicit expiresIn=0 means no expiry', async () => {
     }
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+// ── 发送前的可达性预检：让「IP 打错 / 对方没开 LocalSend」在两秒内暴露 ──
+
+test('probeDevice: detects a live receiver over plain HTTP and reports the protocol', async () => {
+  const server = http.createServer((req, res) => {
+    if (req.url === '/api/localsend/v2/info') {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ alias: 'probe-target', version: '2.1', deviceType: 'desktop' }))
+      return
+    }
+    res.writeHead(404)
+    res.end()
+  })
+  await new Promise((r) => server.listen(0, '127.0.0.1', r))
+  const port = server.address().port
+  try {
+    const r = await probeDevice('127.0.0.1', port, { timeoutMs: 1500 })
+    assert.equal(r.reachable, true)
+    assert.equal(r.protocol, 'http', '只开 HTTP 的接收端也必须能被探到(旧实现硬编码 https)')
+    assert.equal(r.info.alias, 'probe-target')
+  } finally {
+    server.close()
+  }
+})
+
+test('probeDevice: fails fast with a readable reason when nothing is listening', async () => {
+  const srv = http.createServer(() => {})
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r))
+  const port = srv.address().port
+  await new Promise((r) => srv.close(r))
+  const t0 = Date.now()
+  const r = await probeDevice('127.0.0.1', port, { timeoutMs: 1500 })
+  assert.equal(r.reachable, false)
+  assert.equal(r.protocol, null)
+  assert.ok(r.error.length > 0, '必须给出失败原因,而不只是 null')
+  assert.ok(Date.now() - t0 < 3000, '应快速失败,而不是等满 acceptTimeoutMs')
+})
+
+test('probeDevice: a non-LocalSend HTTP endpoint is rejected', async () => {
+  const server = http.createServer((req, res) => { res.writeHead(404); res.end('nope') })
+  await new Promise((r) => server.listen(0, '127.0.0.1', r))
+  const port = server.address().port
+  try {
+    const r = await probeDevice('127.0.0.1', port, { timeoutMs: 1500 })
+    assert.equal(r.reachable, false)
+    assert.match(r.error, /HTTP 404/)
+  } finally {
+    server.close()
   }
 })

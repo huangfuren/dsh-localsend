@@ -42,7 +42,7 @@ When **the receiver installs nothing at all**, push files/folders over an SMB sh
 
 - **Five tools**:
   - `localsend_list_devices` — scan the LAN and list LocalSend devices (ip / alias / protocol version / device type); optional `subnet` (CIDR) to scope the scan;
-  - `localsend_send_files` — send files/folders to a named target (alias auto-resolved, or IP); directories auto-packed; blocks until the receiver accepts, then uploads, returning per-file results;
+  - `localsend_send_files` — send files/folders to a named target (alias auto-resolved, or IP); directories auto-packed; **probes the target first, so a wrong IP fails in seconds with next steps instead of waiting out the accept timeout**; blocks until the receiver accepts, then uploads, returning per-file results;
   - `localsend_share` — generate a temporary LAN HTTP download link; the receiver just opens it in a browser, no software needed; supports password protection; the server closes after download; output is a structured object (url / per-file size / total size / expiry / whether password-protected / log);
   - `localsend_send_plugin` — pack a DSH plugin directory into a self-contained distribution zip (excludes `node_modules`/`.git`; contains a `dsh-plugin.manifest.json` manifest + `INSTALL.md` card) and share it over a temporary HTTP link; **the receiver needs only a browser**, no LocalSend or any software, then unzips and runs one install command from `INSTALL.md`. The `plugin` argument accepts an absolute directory path or an installed plugin name (resolved read-only under `~/.dsh/profiles/*/node_modules`; distributing dsh-localsend itself is just `plugin="dsh-localsend"`);
   - `localsend_smb_push` — see "SMB push mode" above.

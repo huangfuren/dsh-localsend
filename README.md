@@ -42,7 +42,7 @@ LocalSend 没有官方 CLI，但每台 LocalSend 接收端都是一个标准 HTT
 
 - **五件工具**：
   - `localsend_list_devices` — 扫描局域网，列出 LocalSend 设备（ip / 别名 / 协议版本 / 设备类型）；可选 `subnet`（CIDR）限定网段；
-  - `localsend_send_files` — 把文件/文件夹发给指定目标（别名自动解析或 IP）；目录自动打包；阻塞等待接收端接受后上传，返回逐文件结果；
+  - `localsend_send_files` — 把文件/文件夹发给指定目标（别名自动解析或 IP）；目录自动打包；**发送前先探测目标是否为在线的 LocalSend 接收端，不通即刻报错并给出替代方案**；阻塞等待接收端接受后上传，返回逐文件结果；
   - `localsend_share` — 生成临时 LAN HTTP 下载链接，接收方用浏览器打开即可下载，无需安装任何软件；支持密码保护；下载完自动关服务器；输出为结构化对象（含 url / 每文件 size / 总大小 / 有效期 / 是否密码 / 日志）；
   - `localsend_send_plugin` — 把一个 DSH 插件目录打包成自包含分发 zip（排除 `node_modules`/`.git`，内含 `dsh-plugin.manifest.json` 清单 + `INSTALL.md` 安装卡），经临时 HTTP 链接分享；**接收方只要浏览器就能拿到**，无需安装 LocalSend 或任何软件，解压后按 `INSTALL.md` 一条命令装入。`plugin` 参数支持绝对目录路径或已安装插件名（只读地在 `~/.dsh/profiles/*/node_modules` 下解析，分发 dsh-localsend 自身只需 `plugin="dsh-localsend"`）；
   - `localsend_smb_push` — 见上方「SMB 推送模式」。
