@@ -10,7 +10,7 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 
-import { createShareSession } from '../lib/share.js'
+import { createShareSession, getLocalIp, getLocalIps } from '../lib/share.js'
 
 function tmpdir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'ls-share-'))
@@ -102,6 +102,21 @@ test('createShareSession: session-owned temps survive until close, then are remo
   s.close()
   assert.ok(!fs.existsSync(tempZip), '会话关闭后临时文件应被清理')
   fs.rmSync(dir, { recursive: true, force: true })
+})
+
+test('getLocalIps / getLocalIp only ever return non-internal IPv4 addresses', () => {
+  const ips = getLocalIps()
+  for (const x of ips) {
+    assert.match(x.address, /^\d{1,3}(\.\d{1,3}){3}$/)
+    assert.ok(typeof x.name === 'string' && x.name.length > 0, '每个候选都要带网卡名')
+    assert.ok(!x.address.startsWith('127.'), '不应包含回环地址')
+    assert.ok(!x.address.startsWith('169.254.'), '不应包含链路本地地址')
+  }
+  const picked = getLocalIp()
+  assert.match(picked, /^\d{1,3}(\.\d{1,3}){3}$/)
+  if (ips.length > 0) {
+    assert.ok(ips.some((x) => x.address === picked), '选中的地址必须来自候选列表')
+  }
 })
 
 test('createShareSession: root URL renders the multi-file list page', async () => {

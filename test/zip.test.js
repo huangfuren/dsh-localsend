@@ -7,7 +7,7 @@ import path from 'node:path'
 import zlib from 'node:zlib'
 
 import { cleanupTemps, packDirectory, resolveSendTargets } from '../lib/pack.js'
-import { crc32, createZip } from '../lib/zip.js'
+import { crc32, createZip, writeZipFile } from '../lib/zip.js'
 
 /** 简易 zip 解析:返回中央目录条目 [{name, method, crc, compSize, uncompSize, offset}]。 */
 function parseZip(buf) {
@@ -94,6 +94,43 @@ test('packDirectory + resolveSendTargets pack a folder tree and clean up', async
     assert.ok(!fs.existsSync(packed.sendPath), 'temp zip removed')
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('writeZipFile streams entries to disk with the same layout as createZip', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ls-zipw-'))
+  const f1 = path.join(dir, 'a.txt')
+  const sub = path.join(dir, 'nested')
+  fs.mkdirSync(sub)
+  const f2 = path.join(sub, '中文.md')
+  fs.writeFileSync(f1, 'A'.repeat(1000))
+  fs.writeFileSync(f2, '# B')
+  const out = path.join(dir, 'out.zip')
+  try {
+    const r = await writeZipFile([{ name: 'a.txt', path: f1 }, { name: 'nested/中文.md', path: f2 }], out)
+    assert.equal(r.entryCount, 2)
+    const buf = fs.readFileSync(out)
+    assert.equal(r.size, buf.length, 'size 应等于实际落盘字节数')
+    const z = parseZip(buf)
+    assert.equal(z.count, 2)
+    assert.equal(z.entries.find((e) => e.name === 'a.txt').raw.length, 1000)
+    assert.equal(z.entries.find((e) => e.name === 'nested/中文.md').raw.toString(), '# B')
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('writeZipFile removes the partial file when a source is missing', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ls-zipw-'))
+  const out = path.join(dir, 'out.zip')
+  try {
+    await assert.rejects(
+      () => writeZipFile([{ name: 'gone.txt', path: path.join(dir, 'gone.txt') }], out),
+      /ENOENT/,
+    )
+    assert.ok(!fs.existsSync(out), '写失败时不应留下半截 zip')
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
   }
 })
 

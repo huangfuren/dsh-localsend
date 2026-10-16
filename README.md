@@ -78,7 +78,7 @@ dsh plugin --profile web add git+https://github.com/huangfuren/dsh-localsend.git
 | `scanTimeoutMs` | 1500 | 单 IP 探测超时（ms） |
 | `acceptTimeoutMs` | 240000 | 等待接收端接受（ms） |
 | `uploadTimeoutMs` | 120000 | 单文件上传超时（ms） |
-| `maxFileBytes` | 1073741824 (1 GiB) | 单文件/单 zip 包大小上限（bytes） |
+| `maxFileBytes` | 1073741824 (1 GiB) | 单文件/单 zip 包大小上限（bytes）；目录打包为流式写入，内存占用只与最大单文件有关，可按需调大 |
 | `sharePort` | 0 | 分享服务监听端口（0 = 随机） |
 | `shareExpiresIn` | 3600 | 分享链接有效期（秒），0 = 不过期 |
 | `sharePassword` | "" | 分享下载密码（空 = 无密码） |

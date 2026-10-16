@@ -37,6 +37,21 @@
 - **新增 6 条分享会话契约测试**（`test/share-session.test.js`）：锁住「返回的是会话本身」、
   `onDone` 在「下载完成 / 到期 / 手动 close」三种情形下都会触发、临时文件随会话清理、
   根路径渲染多文件列表页。此前 `grep onDone test/` **零命中** —— 50 个用例全绿也测不出这个 bug。
+- **大目录打包改为流式写入，内存占用降一个数量级**：`packDirectory()` 过去先由
+  `collectDirectory()` 把**每个文件的内容读进内存攒成数组**，再交给 `createZip()` 一次性
+  concat 出完整 zip —— 整个过程中「全部原始数据 + 全部压缩结果 + 最终 buffer」同时驻留。
+  实测打包 60 MB 目录（20 个 3 MB 不可压缩文件）后仍驻留 **375 MB**。现在新增
+  `writeZipFile()`（`lib/zip.js`）逐文件「读入 → 压缩 → 写盘 → 释放」，`collectDirectory()`
+  只收集文件清单（`stat`，不读内容），同样输入驻留降到 **21.5 MB**。`createZip()` 保留给
+  插件包等小体量输入。
+- **zip 写入改用 `FileHandle` 顺序写**：先前的 `WriteStream` 版在「首个文件读取即失败」时，
+  异步 open 会在调用方结束之后才落地并抛 `ENOENT`（实测触发 `uncaughtException`）；
+  改用 `fs.promises.open()` + 顺序 `write()` 后收尾干净，失败时也不会在磁盘上留下半截 zip。
+- **分享链接不再指向虚拟网卡**：`getLocalIp()` 旧实现取「第一个非内部 IPv4」—— 装了
+  WSL / Hyper-V / VirtualBox / Docker 时枚举顺序常把虚拟网卡排在前面，链接于是指向对端
+  根本访问不到的地址。现在新增 `getLocalIps()` 返回全部候选，`getLocalIp()` 优先物理网卡、
+  跳过链路本地 `169.254.x`，全是虚拟网卡时才退回第一个候选；`localsend_share` 在多网卡时
+  会把所有候选地址打进日志，便于手动替换。
 
 ## 0.5.0 (2026-10-10)
 

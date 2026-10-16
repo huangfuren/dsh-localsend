@@ -78,7 +78,7 @@ dsh plugin --profile web add git+https://github.com/huangfuren/dsh-localsend.git
 | `scanTimeoutMs` | 1500 | Per-IP probe timeout (ms) |
 | `acceptTimeoutMs` | 240000 | Wait for the receiver to accept (ms) |
 | `uploadTimeoutMs` | 120000 | Per-file upload timeout (ms) |
-| `maxFileBytes` | 1073741824 (1 GiB) | Per-file/per-zip size cap (bytes) |
+| `maxFileBytes` | 1073741824 (1 GiB) | Per-file/per-zip size cap (bytes); folders are zipped in a streaming pass, so memory tracks the largest single file rather than the folder total |
 | `sharePort` | 0 | Share server port (0 = random) |
 | `shareExpiresIn` | 3600 | Share link lifetime (seconds), 0 = no expiry |
 | `sharePassword` | "" | Share download password (empty = none) |
