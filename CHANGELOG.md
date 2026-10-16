@@ -21,6 +21,22 @@
 - **修复 `expiresIn: 0`（无有效期）在参数层不可达**：旧实现写 `Number(x) || 3600`，把显式传入
   的 `0` 当成假值吞成了 `3600`，与 README / 工具描述里「0 = no expiry」的承诺矛盾；`port` 同理。
   现在只有「未提供」才回落默认，`0` 与空串按原样生效。
+- **修复分享通道「调用后永久挂起」的致命 bug —— `localsend_share` / `localsend_send_plugin`
+  此前从未真正可用过**：`createShareSession()` 用 `resolve({url,token,port,expires,files,close})`
+  返回了一个**新建的对象字面量**，而 `closed` / `downloaded` / `onDone` / `temps` 只存在于内部
+  会话对象上。两个工具都写 `session.onDone = fn` 等下载结束 —— 回调落在另一个对象上，
+  `shutdown()` 永远读不到，于是 `await` 永不返回。宿主侧也没有兜底：`timeoutMs` 在 DSH 里
+  **仅作声明、不强制执行**，所以工具会一直挂到用户手动取消，而取消又会关掉服务器、只拿回一条死链。
+  实测：`expiresIn: 5` 在 8 秒后 `onDone` 仍未触发，且返回对象上 `closed === undefined`。
+  现在 `createShareSession()` 直接 resolve 会话本身；两个工具改为**生成链接后立即返回**，
+  服务器在后台继续服务直到过期或全部下载完成；临时 zip 改由会话持有、在会话关闭时清理
+  （此前由工具在 `finally` 里删除 —— 一旦改为立即返回，链接就会指向已被删掉的文件）；
+  工具也不再绑定 `exec.signal`，否则对话一结束服务器就被关掉。
+- **分享链接改为根路径**：多文件时 `/dl/<token>` 只会给出第 1 个文件（实测响应体只含第 1 个），
+  现在对外给 `http://<ip>:<port>/` —— 多文件渲染列表页，单文件自动 302 跳转到下载。
+- **新增 6 条分享会话契约测试**（`test/share-session.test.js`）：锁住「返回的是会话本身」、
+  `onDone` 在「下载完成 / 到期 / 手动 close」三种情形下都会触发、临时文件随会话清理、
+  根路径渲染多文件列表页。此前 `grep onDone test/` **零命中** —— 50 个用例全绿也测不出这个 bug。
 
 ## 0.5.0 (2026-10-10)
 

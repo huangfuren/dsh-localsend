@@ -8,7 +8,7 @@
   "author": "huangfuren",
   "scripts": {
     "check": "node --check index.js && node --check client.js && node --check lib/constants.js && node --check lib/net.js && node --check lib/discovery.js && node --check lib/pack.js && node --check lib/protocol.js && node --check lib/transfer.js && node --check lib/zip.js && node --check lib/share.js && node --check lib/plugin-pack.js && node --check lib/smb.js && node --check lib/tools/list.js && node --check lib/tools/send.js && node --check lib/tools/share.js && node --check lib/tools/send-plugin.js && node --check lib/tools/smb.js",
-    "test": "node --test test/mock.test.js test/unit.test.js test/zip.test.js test/plugin-pack.test.js test/smb.test.js",
+    "test": "node --test test/mock.test.js test/unit.test.js test/zip.test.js test/plugin-pack.test.js test/smb.test.js test/share-session.test.js",
     "verify": "npm run check && npm test",
     "prepack": "npm run verify"
   },

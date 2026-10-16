@@ -159,7 +159,10 @@ test('createShareSession: explicit expiresIn=0 means no expiry', async () => {
     try {
       assert.equal(session.expires, null, 'expiresIn=0 应得到 null（不过期）')
       assert.ok(session.port > 0, 'port=0 应自动分配一个可用端口')
-      assert.match(session.url, /^http:\/\/[^/]+:\d+\/dl\//)
+      // 对外统一给根路径:单文件会自动 302 跳到下载,多文件渲染列表页(旧实现给 /dl/<token>,
+      // 多文件时接收方只能拿到第 1 个文件)。
+      assert.match(session.url, /^http:\/\/[^/]+:\d+\/$/)
+      assert.match(session.downloadUrl, /^http:\/\/[^/]+:\d+\/dl\//)
       assert.equal(session.files.length, 1)
     } finally {
       session.close()
